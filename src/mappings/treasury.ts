@@ -2,6 +2,7 @@ import { BigDecimal, BigInt, ethereum, log } from "@graphprotocol/graph-ts";
 
 import {
   convertToDecimal,
+  createOrLoadProtocol,
   createOrLoadRound,
   createOrLoadTransactionFromEvent,
   createOrUpdateLivepeerAccount,
@@ -96,7 +97,11 @@ function handleVote(
     voter,
     event.block.timestamp.toI32()
   );
-  const round = createOrLoadRound(getBlockNum());
+  let protocol = createOrLoadProtocol();
+  const round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
   const transaction = createOrLoadTransactionFromEvent(event);
   const voteId = proposal.id.concat("-").concat(voter);
   let vote = TreasuryVote.load(voteId);

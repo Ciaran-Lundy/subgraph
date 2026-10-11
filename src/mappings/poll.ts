@@ -7,6 +7,7 @@ import {
 } from "@graphprotocol/graph-ts";
 import {
   convertToDecimal,
+  createOrLoadProtocol,
   createOrLoadRound,
   createOrLoadTransactionFromEvent,
   createOrLoadTranscoder,
@@ -33,7 +34,11 @@ export function vote(event: VoteEventParam): void {
   ) {
     return;
   }
-  let round = createOrLoadRound(getBlockNum());
+  let protocol = createOrLoadProtocol();
+  let round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
   let poll = Poll.load(event.address.toHex());
 
   if (!poll) {

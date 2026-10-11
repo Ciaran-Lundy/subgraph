@@ -1,5 +1,6 @@
 import {
   convertToDecimal,
+  createOrLoadProtocol,
   createOrLoadRound,
   createOrLoadTransactionFromEvent,
   getBlockNum,
@@ -17,7 +18,11 @@ import {
 export function migrateDelegatorFinalized(
   event: MigrateDelegatorFinalized
 ): void {
-  let round = createOrLoadRound(getBlockNum());
+  let protocol = createOrLoadProtocol();
+  let round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
 
   createOrLoadTransactionFromEvent(event);
 
@@ -44,7 +49,11 @@ export function migrateDelegatorFinalized(
 }
 
 export function stakeClaimed(event: StakeClaimed): void {
-  let round = createOrLoadRound(getBlockNum());
+  let protocol = createOrLoadProtocol();
+  let round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
 
   createOrLoadTransactionFromEvent(event);
 

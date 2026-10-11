@@ -44,7 +44,13 @@ export function mint(event: Mint): void {
     day.participationRate = protocol.participationRate;
   }
 
-  let round = createOrLoadRound(getBlockNum());
+  let round = createOrLoadRound(
+
+    protocol,
+
+    getBlockNum(protocol, event.block)
+
+  );
   round.totalSupply = totalSupply;
   round.participationRate = protocol.participationRate;
   round.save();
@@ -67,7 +73,10 @@ export function mint(event: Mint): void {
 
 export function burn(event: Burn): void {
   let protocol = createOrLoadProtocol();
-  let round = createOrLoadRound(getBlockNum());
+  let round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
   let day = createOrLoadDay(event.block.timestamp.toI32());
   let value = convertToDecimal(event.params.value);
   let minterAddress = getMinterAddress();

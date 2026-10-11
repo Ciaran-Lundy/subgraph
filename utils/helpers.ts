@@ -5,6 +5,7 @@ import {
   Bytes,
   dataSource,
   ethereum,
+  log,
 } from "@graphprotocol/graph-ts";
 import { RoundsManager } from "../src/types/RoundsManager/RoundsManager";
 import {
@@ -187,6 +188,10 @@ export function createOrLoadProtocol(): Protocol {
     protocol.winningTicketCount = 0;
     protocol.roundCount = 0;
     protocol.lptPriceEth = ZERO_BD;
+    protocol.ethPriceUsd = ZERO_BD;
+    protocol.ethPriceCachedAtBlock = ZERO_BI;
+    protocol.l1BlockNum = ZERO_BI;
+    protocol.l1BlockCachedAtL2Block = ZERO_BI;
     protocol.activeBroadcasters = [];
 
     // Counted exactly from bonded-state transitions (see updateDelegatorCounts)
@@ -411,8 +416,12 @@ export function createOrLoadBroadcasterDay(
   return broadcasterDay;
 }
 
-export function createOrLoadRound(blockNumber: BigInt): Round {
-  let protocol = createOrLoadProtocol();
+// `protocol` must be the caller's own Protocol instance: this function updates
+// and saves it when it creates a new round.
+export function createOrLoadRound(
+  protocol: Protocol,
+  blockNumber: BigInt
+): Round {
   let roundsSinceLastUpdate = blockNumber
     .minus(protocol.lastRoundLengthUpdateStartBlock)
     .div(protocol.roundLength);
@@ -438,15 +447,15 @@ export function createOrLoadRound(blockNumber: BigInt): Round {
   protocol.currentRound = newRound.toString();
   protocol.save();
 
-  return createRound(startBlock, protocol.roundLength, newRound);
+  return createRound(protocol, startBlock, protocol.roundLength, newRound);
 }
 
 export function createRound(
+  protocol: Protocol,
   startBlock: BigInt,
   roundLength: BigInt,
   roundNumber: BigInt
 ): Round {
-  let protocol = createOrLoadProtocol();
   let round = new Round(roundNumber.toString());
   round.startBlock = startBlock;
   round.endBlock = startBlock.plus(roundLength);
@@ -484,35 +493,85 @@ export function safeDiv(amount0: BigDecimal, amount1: BigDecimal): BigDecimal {
   }
 }
 
-export function getEthPriceUsd(): BigDecimal {
-  return getPriceForPair(getUniswapV3DaiEthPoolAddress());
+// A fresh price outside [cached / FACTOR, cached * FACTOR] is treated as a bad
+// read and rejected, unless the cached price is older than the window below,
+// so a genuine move after a long gap without tickets is still accepted.
+let ETH_PRICE_SANITY_FACTOR = BigDecimal.fromString("2");
+// ~1 day of Arbitrum One blocks
+let ETH_PRICE_SANITY_WINDOW_BLOCKS = BigInt.fromI32(345600);
+
+// ETH price in USD, cached on Protocol per block: every eth_call made while
+// processing a block is evaluated against that block's final state, so the
+// value cannot change within it. Mutates `protocol`; the caller saves it.
+export function getEthPriceUsd(
+  protocol: Protocol,
+  block: ethereum.Block
+): BigDecimal {
+  if (
+    protocol.ethPriceCachedAtBlock.equals(block.number) &&
+    protocol.ethPriceUsd.gt(ZERO_BD)
+  ) {
+    return protocol.ethPriceUsd;
+  }
+
+  // ethPriceCachedAtBlock is only moved when a price is accepted, so a run of
+  // rejected reads cannot keep the cached price "recent" indefinitely.
+  let cached = protocol.ethPriceUsd;
+  let price = getPriceForPair(getUniswapV3DaiEthPoolAddress());
+  if (price === null) {
+    return cached;
+  }
+
+  let fresh = price as BigDecimal;
+  let cacheIsRecent = block.number
+    .minus(protocol.ethPriceCachedAtBlock)
+    .lt(ETH_PRICE_SANITY_WINDOW_BLOCKS);
+  if (
+    cached.gt(ZERO_BD) &&
+    cacheIsRecent &&
+    (fresh.gt(cached.times(ETH_PRICE_SANITY_FACTOR)) ||
+      fresh.times(ETH_PRICE_SANITY_FACTOR).lt(cached))
+  ) {
+    log.warning(
+      "getEthPriceUsd: rejecting price {} at block {}, cached price is {}",
+      [fresh.toString(), block.number.toString(), cached.toString()]
+    );
+    return cached;
+  }
+
+  protocol.ethPriceUsd = fresh;
+  protocol.ethPriceCachedAtBlock = block.number;
+  return fresh;
 }
 
-export function getLptPriceEth(): BigDecimal {
+// LPT price in ETH, or null if it could not be read.
+export function getLptPriceEth(): BigDecimal | null {
   return getPriceForPair(getUniswapV3LptEthPoolAddress());
 }
 
-export function getPriceForPair(address: string): BigDecimal {
-  let pricePair = ZERO_BD;
-
+// Price of token1 in token0 from a Uniswap V3 pool, or null when the network
+// has no pool or the slot0 call reverts.
+export function getPriceForPair(address: string): BigDecimal | null {
   if (
-    dataSource.network() == "arbitrum-one" ||
-    dataSource.network() == "arbitrum-goerli"
+    dataSource.network() != "arbitrum-one" &&
+    dataSource.network() != "arbitrum-goerli"
   ) {
-    let uniswapPool = UniswapV3Pool.bind(Address.fromString(address));
-    let slot0 = uniswapPool.try_slot0();
-    if (!slot0.reverted) {
-      let sqrtPriceX96 = slot0.value.value0;
-      let prices = sqrtPriceX96ToTokenPrices(
-        sqrtPriceX96,
-        BigInt.fromI32(18),
-        BigInt.fromI32(18)
-      );
-      pricePair = prices[1];
-    }
+    return null;
   }
 
-  return pricePair;
+  let uniswapPool = UniswapV3Pool.bind(Address.fromString(address));
+  let slot0 = uniswapPool.try_slot0();
+  if (slot0.reverted) {
+    log.warning("slot0 reverted for Uniswap V3 pool {}", [address]);
+    return null;
+  }
+
+  let prices = sqrtPriceX96ToTokenPrices(
+    slot0.value.value0,
+    BigInt.fromI32(18),
+    BigInt.fromI32(18)
+  );
+  return prices[1];
 }
 
 let Q192 = "6277101735386680763835789423207666416102355444464034512896"; // 2 ** 192
@@ -596,11 +655,22 @@ export function getMinterAddress(): string {
   }
 }
 
-export function getBlockNum(): BigInt {
-  let roundsManagerAddress = getRoundsManagerAddress();
+// RoundsManager.blockNum() (the L1 block number on Arbitrum), cached on
+// Protocol per L2 block since the eth_call result cannot change within one.
+// Mutates and saves `protocol` on a cache miss; pass the caller's instance.
+export function getBlockNum(protocol: Protocol, block: ethereum.Block): BigInt {
+  if (
+    protocol.l1BlockCachedAtL2Block.equals(block.number) &&
+    protocol.l1BlockNum.gt(ZERO_BI)
+  ) {
+    return protocol.l1BlockNum;
+  }
 
   let roundsManager = RoundsManager.bind(
-    Address.fromString(roundsManagerAddress)
+    Address.fromString(getRoundsManagerAddress())
   );
-  return roundsManager.blockNum();
+  protocol.l1BlockNum = roundsManager.blockNum();
+  protocol.l1BlockCachedAtL2Block = block.number;
+  protocol.save();
+  return protocol.l1BlockNum;
 }

@@ -1,6 +1,7 @@
 import { Address, BigDecimal, dataSource } from "@graphprotocol/graph-ts";
 import {
   convertToDecimal,
+  createOrLoadProtocol,
   createOrLoadRound,
   createOrLoadTranscoder,
   createOrLoadVote,
@@ -38,12 +39,13 @@ export function updatePollTallyOnReward(event: Reward): void {
   // Use getBlockNum() (L1 block number) instead of event.block.number (L2 block
   // number) since poll.endBlock is set from the contract's block.number which
   // returns L1 block numbers on Arbitrum
-  let blockNum = getBlockNum();
+  let protocol = createOrLoadProtocol();
+  let blockNum = getBlockNum(protocol, event.block);
   if (!poll || poll.endBlock.lt(blockNum)) {
     return;
   }
 
-  let round = createOrLoadRound(blockNum);
+  let round = createOrLoadRound(protocol, blockNum);
   let voteId = makeVoteId(delegator.id, poll.id);
   let vote = createOrLoadVote(voteId);
   let transcoder = createOrLoadTranscoder(
@@ -89,7 +91,8 @@ export function updatePollTallyOnBond(event: Bond): void {
   // Use getBlockNum() (L1 block number) instead of event.block.number (L2 block
   // number) since poll.endBlock is set from the contract's block.number which
   // returns L1 block numbers on Arbitrum
-  if (!poll || poll.endBlock.lt(getBlockNum())) {
+  let protocol = createOrLoadProtocol();
+  if (!poll || poll.endBlock.lt(getBlockNum(protocol, event.block))) {
     return;
   }
 
@@ -219,12 +222,13 @@ function updatePollTally<T extends Rebond>(event: T): void {
   // Use getBlockNum() (L1 block number) instead of event.block.number (L2 block
   // number) since poll.endBlock is set from the contract's block.number which
   // returns L1 block numbers on Arbitrum
-  let blockNum = getBlockNum();
+  let protocol = createOrLoadProtocol();
+  let blockNum = getBlockNum(protocol, event.block);
   if (!poll || poll.endBlock.lt(blockNum)) {
     return;
   }
 
-  let round = createOrLoadRound(blockNum);
+  let round = createOrLoadRound(protocol, blockNum);
   let voterAddress = dataSource.context().getString("voter");
   let voteId = makeVoteId(voterAddress, pollAddress);
   let vote = createOrLoadVote(voteId);

@@ -1,4 +1,5 @@
 import {
+  createOrLoadProtocol,
   createOrLoadRound,
   createOrLoadTransactionFromEvent,
   getBlockNum,
@@ -9,7 +10,11 @@ import { Poll, PollCreatedEvent } from "../types/schema";
 import { Poll as PollTemplate } from "../types/templates";
 
 export function pollCreated(event: PollCreated): void {
-  let round = createOrLoadRound(getBlockNum());
+  let protocol = createOrLoadProtocol();
+  let round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
 
   let poll = new Poll(event.params.poll.toHex());
   poll.tally = event.params.poll.toHex();

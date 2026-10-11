@@ -12,8 +12,11 @@ import {
 } from "../types/schema";
 
 export function pause(event: Pause): void {
-  let round = createOrLoadRound(getBlockNum());
   let protocol = createOrLoadProtocol();
+  let round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
   protocol.paused = true;
   protocol.save();
 
@@ -29,8 +32,11 @@ export function pause(event: Pause): void {
 }
 
 export function unpause(event: Unpause): void {
-  let round = createOrLoadRound(getBlockNum());
   let protocol = createOrLoadProtocol();
+  let round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
   protocol.paused = false;
   protocol.save();
 

@@ -1,4 +1,5 @@
 import {
+  createOrLoadProtocol,
   createOrLoadRound,
   createOrLoadTransactionFromEvent,
   createOrLoadTranscoder,
@@ -10,7 +11,11 @@ import { ServiceURIUpdateEvent } from "../types/schema";
 import { ServiceURIUpdate } from "../types/ServiceRegistry/ServiceRegistry";
 
 export function serviceURIUpdate(event: ServiceURIUpdate): void {
-  let round = createOrLoadRound(getBlockNum());
+  let protocol = createOrLoadProtocol();
+  let round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
   let transcoder = createOrLoadTranscoder(
     event.params.addr.toHex(),
     event.block.timestamp.toI32()

@@ -44,6 +44,14 @@ type Protocol @entity {
   totalSupply: BigDecimal!
   "Livepeer Token price in ETH (not to be used for trading - updated only every round)"
   lptPriceEth: BigDecimal!
+  "ETH price in USD from the Uniswap V3 DAI/ETH pool, cached per block (not to be used for trading)"
+  ethPriceUsd: BigDecimal!
+  "L2 block at which ethPriceUsd was last read and accepted"
+  ethPriceCachedAtBlock: BigInt!
+  "RoundsManager.blockNum() (L1 block number) cached for the L2 block below"
+  l1BlockNum: BigInt!
+  "L2 block at which l1BlockNum was read"
+  l1BlockCachedAtL2Block: BigInt!
   "Total winning tickets"
   winningTicketCount: Int!
   "Total rounds"

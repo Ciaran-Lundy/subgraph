@@ -34,15 +34,18 @@ import {
 } from "../types/TicketBroker/TicketBroker";
 
 export function winningTicketRedeemed(event: WinningTicketRedeemed): void {
-  let round = createOrLoadRound(getBlockNum());
+  let protocol = createOrLoadProtocol();
+  let round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
   let timestamp = event.block.timestamp.toI32();
   let day = createOrLoadDay(timestamp);
   let winningTicketRedeemedEvent = new WinningTicketRedeemedEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  let protocol = createOrLoadProtocol();
   let faceValue = convertToDecimal(event.params.faceValue);
-  let ethPrice = getEthPriceUsd();
+  let ethPrice = getEthPriceUsd(protocol, event.block);
   let faceValueUSD = faceValue.times(ethPrice);
 
   // WinningTicketRedeemed only carries faceValue. The amount actually paid
@@ -163,7 +166,11 @@ export function winningTicketRedeemed(event: WinningTicketRedeemed): void {
 }
 
 export function winningTicketTransfer(event: WinningTicketTransfer): void {
-  let round = createOrLoadRound(getBlockNum());
+  let protocol = createOrLoadProtocol();
+  let round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
   createOrLoadBroadcaster(event.params.sender.toHex());
   createOrLoadTranscoder(
     event.params.recipient.toHex(),
@@ -184,7 +191,11 @@ export function winningTicketTransfer(event: WinningTicketTransfer): void {
 }
 
 export function depositFunded(event: DepositFunded): void {
-  let round = createOrLoadRound(getBlockNum());
+  let protocol = createOrLoadProtocol();
+  let round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
   let broadcaster = createOrLoadBroadcaster(event.params.sender.toHex());
   const timestamp = event.block.timestamp.toI32();
   
@@ -214,7 +225,11 @@ export function depositFunded(event: DepositFunded): void {
 }
 
 export function reserveFunded(event: ReserveFunded): void {
-  let round = createOrLoadRound(getBlockNum());
+  let protocol = createOrLoadProtocol();
+  let round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
   let broadcaster = createOrLoadBroadcaster(event.params.reserveHolder.toHex());
   const timestamp = event.block.timestamp.toI32();
 
@@ -244,7 +259,11 @@ export function reserveFunded(event: ReserveFunded): void {
 }
 
 export function reserveClaimed(event: ReserveClaimed): void {
-  let round = createOrLoadRound(getBlockNum());
+  let protocol = createOrLoadProtocol();
+  let round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
   let broadcaster = createOrLoadBroadcaster(event.params.reserveHolder.toHex());
   broadcaster.reserve = broadcaster.reserve.minus(
     convertToDecimal(event.params.amount)
@@ -266,7 +285,11 @@ export function reserveClaimed(event: ReserveClaimed): void {
 }
 
 export function withdrawal(event: Withdrawal): void {
-  let round = createOrLoadRound(getBlockNum());
+  let protocol = createOrLoadProtocol();
+  let round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
   let broadcaster = createOrLoadBroadcaster(event.params.sender.toHex());
   broadcaster.deposit = ZERO_BD;
   broadcaster.reserve = ZERO_BD;

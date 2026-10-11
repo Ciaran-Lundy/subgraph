@@ -28,7 +28,13 @@ export function setCurrentRewardTokens(event: SetCurrentRewardTokens): void {
   protocol.inflation = minter.inflation();
   protocol.save();
 
-  let round = createOrLoadRound(getBlockNum());
+  let round = createOrLoadRound(
+
+    protocol,
+
+    getBlockNum(protocol, event.block)
+
+  );
 
   round.mintableTokens = convertToDecimal(event.params.currentMintableTokens);
   round.save();
@@ -49,8 +55,11 @@ export function setCurrentRewardTokens(event: SetCurrentRewardTokens): void {
 
 export function parameterUpdate(event: ParameterUpdate): void {
   let minter = Minter.bind(event.address);
-  let round = createOrLoadRound(getBlockNum());
   let protocol = createOrLoadProtocol();
+  let round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
 
   if (event.params.param == "targetBondingRate") {
     protocol.targetBondingRate = minter.targetBondingRate();
