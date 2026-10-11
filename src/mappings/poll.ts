@@ -1,10 +1,4 @@
-import {
-  Address,
-  BigDecimal,
-  dataSource,
-  DataSourceContext,
-  log,
-} from "@graphprotocol/graph-ts";
+import { Address, log } from "@graphprotocol/graph-ts";
 import {
   convertToDecimal,
   createOrLoadProtocol,
@@ -12,19 +6,18 @@ import {
   createOrLoadTransactionFromEvent,
   createOrLoadTranscoder,
   createOrLoadVote,
+  createOrUpdateLivepeerAccount,
   getBlockNum,
   integerFromString,
   makeEventId,
-  makeVoteId,
   ONE_BI,
-  ZERO_BD,
   ZERO_BI,
 } from "../../utils/helpers";
 import { BONDING_MANAGER_ADDRESS } from "../../utils/addresses";
 import { BondingManager } from "../types/BondingManager/BondingManager";
-import { Delegator, Poll, PollTally, Vote, VoteEvent } from "../types/schema";
-import { PollTallyTemplate } from "../types/templates";
+import { Delegator, Poll, VoteEvent } from "../types/schema";
 import { Vote as VoteEventParam } from "../types/templates/Poll/Poll";
+import { tallyVotes } from "./pollTally";
 
 export function vote(event: VoteEventParam): void {
   // Vote must be a "Yes" or "No"
@@ -46,9 +39,9 @@ export function vote(event: VoteEventParam): void {
     return;
   }
 
-  let voteId = makeVoteId(event.params.voter.toHex(), poll.id);
-
-  let v = createOrLoadVote(voteId);
+  let voter = event.params.voter.toHex();
+  createOrUpdateLivepeerAccount(voter, event.block.timestamp.toI32());
+  let v = createOrLoadVote(voter, poll.id);
 
   let firstTimeVoter = v.choiceID == null;
 
@@ -59,17 +52,16 @@ export function vote(event: VoteEventParam): void {
   }
 
   if (firstTimeVoter) {
-    v.voter = event.params.voter.toHex();
     v.poll = poll.id;
 
     // add vote to poll
-    let pollVotes = poll.votes ? poll.votes : new Array<string>();
-    pollVotes.push(voteId);
+    let pollVotes = poll.votes;
+    pollVotes.push(v.id);
     poll.votes = pollVotes;
     poll.save();
 
     // if voter is a delegator
-    let delegator = Delegator.load(event.params.voter.toHex());
+    let delegator = Delegator.load(voter);
     if (delegator && delegator.delegate !== null) {
       let delegate = createOrLoadTranscoder(
         delegator.delegate!,
@@ -77,7 +69,7 @@ export function vote(event: VoteEventParam): void {
       );
 
       // If voter is a registered transcoder
-      if (event.params.voter.toHex() == delegator.delegate) {
+      if (voter == delegator.delegate) {
         v.voteStake = delegate.totalStake;
         v.registeredTranscoder = true;
       } else {
@@ -92,39 +84,21 @@ export function vote(event: VoteEventParam): void {
         );
         v.voteStake = pendingStake;
         v.registeredTranscoder = false;
+        // Lets the delegate's Reward handler find this vote
+        v.delegate = delegate.id;
 
         // update delegate's vote
-        let delegateVoteId = makeVoteId(delegate.id, poll.id);
-        let delegateVote = createOrLoadVote(delegateVoteId);
-        if (delegate.status == "Registered") {
-          delegateVote.registeredTranscoder = true;
-        } else {
-          delegateVote.registeredTranscoder = false;
-        }
-        delegateVote.voter = delegate.id;
-
+        let delegateVote = createOrLoadVote(delegate.id, poll.id);
+        delegateVote.registeredTranscoder = delegate.status == "Registered";
         delegateVote.nonVoteStake = delegateVote.nonVoteStake.plus(v.voteStake);
         delegateVote.save();
       }
     }
-
-    // Watch for events specified in PollTallyTemplate, and trigger handlers
-    // with this context
-    let context = new DataSourceContext();
-    context.setString("poll", poll.id);
-    context.setString("voter", event.params.voter.toHex());
-    PollTallyTemplate.createWithContext(
-      Address.fromString(BONDING_MANAGER_ADDRESS),
-      context
-    );
   }
 
   v.save();
 
-  // if voter has stake, update poll tally
-  if (v.voteStake) {
-    tallyVotes(poll);
-  }
+  tallyVotes(poll);
 
   createOrLoadTransactionFromEvent(event);
 
@@ -135,36 +109,7 @@ export function vote(event: VoteEventParam): void {
   voteEvent.timestamp = event.block.timestamp.toI32();
   voteEvent.round = round.id;
   voteEvent.choiceID = event.params.choiceID;
-  voteEvent.voter = event.params.voter.toHex();
+  voteEvent.voter = voter;
   voteEvent.poll = event.address.toHex();
   voteEvent.save();
-}
-
-export function tallyVotes(poll: Poll): void {
-  let pollTally = new PollTally(poll.id);
-  let votes = poll.votes;
-  let v: Vote | null;
-  let nonVoteStake = ZERO_BD;
-  pollTally.yes = ZERO_BD;
-  pollTally.no = ZERO_BD;
-
-  for (let i = 0; i < votes.length; i++) {
-    v = Vote.load(votes[i]);
-
-    if (!v) {
-      log.error("No vote found for poll tally", []);
-      return;
-    }
-
-    // Only subtract nonVoteStake if delegate was registered during poll period
-    nonVoteStake = v.registeredTranscoder ? v.nonVoteStake : ZERO_BD;
-
-    if (v.choiceID == "Yes") {
-      pollTally.yes = pollTally.yes.plus(v.voteStake.minus(nonVoteStake));
-    }
-    if (v.choiceID == "No") {
-      pollTally.no = pollTally.no.plus(v.voteStake.minus(nonVoteStake));
-    }
-  }
-  pollTally.save();
 }

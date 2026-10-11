@@ -25,6 +25,11 @@ export function pollCreated(event: PollCreated): void {
   poll.votes = [];
   poll.save();
 
+  if (event.params.endBlock.gt(protocol.latestPollEndBlock)) {
+    protocol.latestPollEndBlock = event.params.endBlock;
+    protocol.save();
+  }
+
   // Instantiate data source template
   PollTemplate.create(event.params.poll);
 

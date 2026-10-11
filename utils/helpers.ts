@@ -200,6 +200,7 @@ export function createOrLoadProtocol(): Protocol {
     protocol.l1BlockNum = ZERO_BI;
     protocol.l1BlockCachedAtL2Block = ZERO_BI;
     protocol.activeBroadcasters = [];
+    protocol.latestPollEndBlock = ZERO_BI;
 
     // Counted exactly from bonded-state transitions (see updateDelegatorCounts)
     protocol.delegatorsCount = ZERO_BI;
@@ -237,22 +238,29 @@ export function createOrLoadBroadcaster(id: string): Broadcaster {
   return broadcaster;
 }
 
-export function createOrLoadVote(id: string): Vote {
+// Load the vote of `voter` on `pollId`, or create an unsaved placeholder that
+// only tracks nonVoteStake until the voter casts a vote
+export function createOrLoadVote(voter: string, pollId: string): Vote {
+  let id = makeVoteId(voter, pollId);
   let vote = Vote.load(id);
 
   if (vote == null) {
     vote = new Vote(id);
-    vote.voter = EMPTY_ADDRESS.toHexString();
+    vote.voter = voter;
+    vote.account = voter;
     vote.voteStake = ZERO_BD;
     vote.nonVoteStake = ZERO_BD;
 
     // bool types must be set to something before they can accessed
     vote.registeredTranscoder = false;
-
-    vote.save();
   }
 
   return vote;
+}
+
+// The poll address of a vote id built by makeVoteId
+export function pollIdFromVoteId(voteId: string): string {
+  return voteId.slice(voteId.indexOf("-") + 1);
 }
 
 export function createOrLoadTranscoder(id: string, timestamp: i32): Transcoder {

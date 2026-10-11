@@ -38,6 +38,9 @@ dataSources:
           file: ./abis/RoundsManager.json
       entities:
           - BondEvent
+          - Poll
+          - PollTally
+          - Vote
           - TransferBondEvent
           - Delegator
           - LivepeerAccount
@@ -718,49 +721,6 @@ dataSources:
 ###############################################################################
 templates:
   - kind: ethereum/contract
-    name: PollTallyTemplate
-    network: {{networkName}}
-    source:
-      abi: BondingManager
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.9
-      language: wasm/assemblyscript
-      file: ./src/mappings/pollTallyHandlers.ts
-      abis:
-        - name: BondingManager
-          file: ./abis/BondingManager.json
-        - name: RoundsManager
-          file: ./abis/RoundsManager.json
-      entities:
-        - BondingManager
-        - Reward
-        - Bond
-        - Unbond
-        - Rebond
-        - EarningsClaimed
-      eventHandlers:
-        - event: Reward(indexed address,uint256)
-          handler: updatePollTallyOnReward
-          receipt: true
-          calls:
-            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
-        - event: Bond(indexed address,indexed address,indexed address,uint256,uint256)
-          handler: updatePollTallyOnBond
-          receipt: true
-          calls:
-            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
-        - event: Unbond(indexed address,indexed address,uint256,uint256,uint256)
-          handler: updatePollTallyOnUnbond
-          receipt: true
-          calls:
-            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
-        - event: Rebond(indexed address,indexed address,uint256,uint256)
-          handler: updatePollTallyOnRebond
-          receipt: true
-          calls:
-            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
-  - kind: ethereum/contract
     name: Poll
     network: {{networkName}}
     source:
@@ -780,9 +740,11 @@ templates:
       entities:
         - Transaction
         - Protocol
+        - Round
         - Poll
         - PollTally
         - Vote
+        - LivepeerAccount
         - Delegator
         - Transcoder
         - VoteEvent

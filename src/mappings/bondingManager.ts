@@ -58,6 +58,11 @@ import {
   WithdrawStakeEvent,
 } from "../types/schema";
 import { recordSetController } from "./common";
+import {
+  updateVotesOnBond,
+  updateVotesOnReward,
+  updateVotesOnUnbondOrRebond,
+} from "./pollTally";
 
 export function bond(event: Bond): void {
   let bondingManager = BondingManager.bind(event.address);
@@ -180,6 +185,16 @@ export function bond(event: Bond): void {
   bondEvent.bondedAmount = convertToDecimal(event.params.bondedAmount);
   bondEvent.additionalAmount = convertToDecimal(event.params.additionalAmount);
   bondEvent.save();
+
+  updateVotesOnBond(
+    protocol,
+    getBlockNum(protocol, event.block),
+    event.params.delegator.toHex(),
+    event.params.oldDelegate.toHex(),
+    event.params.newDelegate.toHex(),
+    event.params.bondedAmount,
+    event.params.additionalAmount
+  );
 }
 
 export function transferBond(event: TransferBond): void {
@@ -352,6 +367,14 @@ export function unbond(event: Unbond): void {
   unbondEvent.delegate = event.params.delegate.toHex();
   unbondEvent.delegator = delegator.id;
   unbondEvent.save();
+
+  updateVotesOnUnbondOrRebond(
+    protocol,
+    getBlockNum(protocol, event.block),
+    round.id,
+    event.params.delegator.toHex(),
+    event.params.delegate.toHex()
+  );
 }
 
 // Handler for Rebond events
@@ -447,6 +470,14 @@ export function rebond(event: Rebond): void {
   rebondEvent.amount = convertToDecimal(event.params.amount);
   rebondEvent.unbondingLockId = event.params.unbondingLockId.toI32();
   rebondEvent.save();
+
+  updateVotesOnUnbondOrRebond(
+    protocol,
+    getBlockNum(protocol, event.block),
+    round.id,
+    event.params.delegator.toHex(),
+    event.params.delegate.toHex()
+  );
 }
 
 // Handler for WithdrawStake events
@@ -585,6 +616,13 @@ export function reward(event: Reward): void {
   rewardEvent.rewardTokens = convertToDecimal(event.params.amount);
   rewardEvent.delegate = event.params.transcoder.toHex();
   rewardEvent.save();
+
+  updateVotesOnReward(
+    protocol,
+    getBlockNum(protocol, event.block),
+    round.id,
+    transcoder
+  );
 }
 
 // Handler for TranscoderSlashed events

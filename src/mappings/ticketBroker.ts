@@ -122,6 +122,11 @@ export function winningTicketRedeemed(event: WinningTicketRedeemed): void {
     event.params.recipient.toHex(),
     timestamp
   );
+  // BondingManager.updateTranscoderWithFees() only runs, and so only moves
+  // lastFeeRound, when an amount was actually transferred
+  if (amount.gt(ZERO_BD)) {
+    transcoder.lastFeeRound = round.id;
+  }
   transcoder.totalVolumeETH = transcoder.totalVolumeETH.plus(amount);
   transcoder.totalVolumeUSD = transcoder.totalVolumeUSD.plus(amountUSD);
 
