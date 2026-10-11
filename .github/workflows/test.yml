@@ -1,0 +1,61 @@
+name: Test
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_call:
+
+jobs:
+  unit:
+    name: Build and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: yarn
+      # Runs `prepare`: templatify for arbitrum-one, graph codegen, typechain
+      - name: Install
+        run: yarn --immutable
+      - name: Build
+        run: yarn build
+      - name: Check declared eth_calls
+        run: yarn check:calls
+      - name: Matchstick unit tests
+        run: yarn test:unit
+
+  integration:
+    name: Integration tests (devchain + graph-node)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: yarn
+      - name: Install
+        run: yarn --immutable
+      - name: Start devchain, IPFS, Postgres and graph-node
+        run: docker compose up -d
+      - name: Wait for graph-node
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf -o /dev/null http://127.0.0.1:8030 && exit 0
+            sleep 5
+          done
+          docker compose logs graph-node
+          exit 1
+      - name: Run integration tests
+        run: yarn test:development
+      - name: graph-node logs
+        if: failure()
+        run: docker compose logs graph-node | tail -200

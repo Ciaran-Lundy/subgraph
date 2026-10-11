@@ -4,6 +4,7 @@
     "module": "commonjs",
     "strict": false,
     "esModuleInterop": true,
+    "resolveJsonModule": true,
     "outDir": "dist"
   },
   "include": ["./scripts", "./test"],

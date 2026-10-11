@@ -80,3 +80,7 @@ generated/
 
 # typechain types output
 typechain-types/
+
+# matchstick build output
+tests/.bin/
+tests/.latest.json

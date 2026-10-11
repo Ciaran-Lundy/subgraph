@@ -109,7 +109,8 @@ development:
       address: "B2B2aFbf10E322Ee7dFb6E6EB8a909b9397686bA"
       startBlock: 0
     pollCreator:
-      address: "8bb50806D60c492c0004DAD5D9627DAA2d9732E6"
+      # Deployed by test/test.ts from a fixed test key (test/fixtures)
+      address: "5f85389430048962193eE975F6B5b40C6f90fc66"
       startBlock: 0
     livepeerGovernor:
       address: "deadbeef0deadbeef1deadbeef3deadbeef4dead"
