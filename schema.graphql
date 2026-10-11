@@ -52,7 +52,7 @@ type Protocol @entity {
   pendingActivation: [Transcoder!]!
   "Transcoders pending deactivation"
   pendingDeactivation: [Transcoder!]!
-  "Total number of delegators on the network"
+  "Total number of delegators with a non-zero bonded amount"
   delegatorsCount: BigInt!
   "Broadcasters that paid tickets within the current 90 day fee window"
   activeBroadcasters: [String!]!
@@ -110,6 +110,8 @@ type Transcoder @entity {
   rewardCaller: String
   "Days which the transcoder earned fees"
   transcoderDays: [TranscoderDay!]!
+  "Number of delegators currently bonded to the transcoder (including itself)"
+  delegatorCount: BigInt!
 }
 
 enum TranscoderStatus @entity {
@@ -826,6 +828,26 @@ type WinningTicketRedeemedEvent implements Event @entity {
   recipientRand: BigInt!
   "Auxilary data included in ticket used for additional validation"
   auxData: Bytes!
+}
+
+"""
+WinningTicketTransferEvent entities are created for every emitted WinningTicketTransfer event.
+"""
+type WinningTicketTransferEvent implements Event @entity {
+  "Ethereum transaction hash + event log index"
+  id: ID!
+  "Reference to the transaction the event was included in"
+  transaction: Transaction!
+  "Timestamp of the transaction the event was included in"
+  timestamp: Int!
+  "Reference to the round the event occured in"
+  round: Round!
+  "Reference to the broadcaster who sent the fees"
+  sender: Broadcaster!
+  "Reference to the recipient of the broadcaster fees"
+  recipient: Transcoder!
+  "Amount actually transferred to the recipient (deposit plus any capped reserve claim)"
+  amount: BigDecimal!
 }
 
 """

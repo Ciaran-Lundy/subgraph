@@ -1,4 +1,4 @@
-import { Address, BigInt, dataSource, log } from "@graphprotocol/graph-ts";
+import { BigInt } from "@graphprotocol/graph-ts";
 import {
   convertToDecimal,
   createOrLoadBroadcaster,
@@ -13,6 +13,7 @@ import {
   getBlockNum,
   getEthPriceUsd,
   makeEventId,
+  ONE_BI,
   ZERO_BD,
 } from "../../utils/helpers";
 import {
@@ -20,6 +21,7 @@ import {
   ReserveClaimedEvent,
   ReserveFundedEvent,
   WinningTicketRedeemedEvent,
+  WinningTicketTransferEvent,
   WithdrawalEvent,
 } from "../types/schema";
 import {
@@ -27,6 +29,7 @@ import {
   ReserveClaimed,
   ReserveFunded,
   WinningTicketRedeemed,
+  WinningTicketTransfer,
   Withdrawal,
 } from "../types/TicketBroker/TicketBroker";
 
@@ -41,6 +44,23 @@ export function winningTicketRedeemed(event: WinningTicketRedeemed): void {
   let faceValue = convertToDecimal(event.params.faceValue);
   let ethPrice = getEthPriceUsd();
   let faceValueUSD = faceValue.times(ethPrice);
+
+  // WinningTicketRedeemed only carries faceValue. The amount actually paid
+  // (deposit plus a possibly capped reserve claim) is on WinningTicketTransfer,
+  // which redeemWinningTicket() emits immediately before this event, and only
+  // when the amount is non-zero. Match on the adjacent log index rather than
+  // the transaction alone, since batchRedeemWinningTickets() redeems several
+  // tickets per transaction.
+  let amount = ZERO_BD;
+  if (event.logIndex.gt(BigInt.zero())) {
+    let transfer = WinningTicketTransferEvent.load(
+      makeEventId(event.transaction.hash, event.logIndex.minus(ONE_BI))
+    );
+    if (transfer) {
+      amount = transfer.amount;
+    }
+  }
+  let amountUSD = amount.times(ethPrice);
 
   createOrLoadTransactionFromEvent(event);
 
@@ -57,28 +77,18 @@ export function winningTicketRedeemed(event: WinningTicketRedeemed): void {
   winningTicketRedeemedEvent.auxData = event.params.auxData;
   winningTicketRedeemedEvent.save();
 
-  // The faceValue of the ticket will be subtracted from the ticket sender (broadcaster) deposit.
-  // In case the deposit is insufficient to cover the faceValue, the difference will be subtracted from the reserve.
+  // The faceValue of the ticket is subtracted from the sender's deposit, down
+  // to zero. Any shortfall is claimed from the reserve, which the
+  // ReserveClaimed handler already deducts with the actual (capped) amount.
   let broadcaster = createOrLoadBroadcaster(event.params.sender.toHex());
   if (faceValue.gt(broadcaster.deposit)) {
     broadcaster.deposit = ZERO_BD;
-
-    let difference = faceValue.minus(broadcaster.deposit);
-    if (difference.gt(broadcaster.reserve)) {
-      // we have an error here, broadcaster reserves have been fully depleted
-      log.error("Broadcaster reserves have been depleted to zero for ID: {}", [
-        broadcaster.id,
-      ]);
-      broadcaster.reserve = ZERO_BD;
-    } else {
-      broadcaster.reserve = broadcaster.reserve.minus(difference);
-    }
   } else {
     broadcaster.deposit = broadcaster.deposit.minus(faceValue);
   }
 
-  broadcaster.totalVolumeETH = broadcaster.totalVolumeETH.plus(faceValue);
-  broadcaster.totalVolumeUSD = broadcaster.totalVolumeUSD.plus(faceValueUSD);
+  broadcaster.totalVolumeETH = broadcaster.totalVolumeETH.plus(amount);
+  broadcaster.totalVolumeUSD = broadcaster.totalVolumeUSD.plus(amountUSD);
   
   let broadcasterDay = createOrLoadBroadcasterDay(
     timestamp,
@@ -86,8 +96,8 @@ export function winningTicketRedeemed(event: WinningTicketRedeemed): void {
   );
   broadcaster.lastFundedDay = broadcasterDay.date;
   broadcaster.lastActiveDay = broadcasterDay.date;
-  broadcasterDay.volumeETH = broadcasterDay.volumeETH.plus(faceValue);
-  broadcasterDay.volumeUSD = broadcasterDay.volumeUSD.plus(faceValueUSD);
+  broadcasterDay.volumeETH = broadcasterDay.volumeETH.plus(amount);
+  broadcasterDay.volumeUSD = broadcasterDay.volumeUSD.plus(amountUSD);
   broadcasterDay.save();
   let broadcasterDays = broadcaster.broadcasterDays;
   if (!broadcasterDays.includes(broadcasterDay.id)) {
@@ -101,12 +111,12 @@ export function winningTicketRedeemed(event: WinningTicketRedeemed): void {
     event.params.recipient.toHex(),
     timestamp
   );
-  transcoder.totalVolumeETH = transcoder.totalVolumeETH.plus(faceValue);
-  transcoder.totalVolumeUSD = transcoder.totalVolumeUSD.plus(faceValueUSD);
+  transcoder.totalVolumeETH = transcoder.totalVolumeETH.plus(amount);
+  transcoder.totalVolumeUSD = transcoder.totalVolumeUSD.plus(amountUSD);
 
   // Update total protocol fee volume
-  protocol.totalVolumeETH = protocol.totalVolumeETH.plus(faceValue);
-  protocol.totalVolumeUSD = protocol.totalVolumeUSD.plus(faceValueUSD);
+  protocol.totalVolumeETH = protocol.totalVolumeETH.plus(amount);
+  protocol.totalVolumeUSD = protocol.totalVolumeUSD.plus(amountUSD);
 
   // Track active broadcasters based on ticket activity.
   let activeBroadcasters = protocol.activeBroadcasters;
@@ -120,22 +130,22 @@ export function winningTicketRedeemed(event: WinningTicketRedeemed): void {
 
   // update the transcoder pool fees
   let pool = createOrLoadPool(round.id, event.params.recipient.toHex());
-  pool.fees = pool.fees.plus(faceValue);
+  pool.fees = pool.fees.plus(amount);
   pool.save();
 
   day.totalSupply = protocol.totalSupply;
   day.totalActiveStake = protocol.totalActiveStake;
   day.participationRate = protocol.participationRate;
-  day.volumeETH = day.volumeETH.plus(faceValue);
-  day.volumeUSD = day.volumeUSD.plus(faceValueUSD);
+  day.volumeETH = day.volumeETH.plus(amount);
+  day.volumeUSD = day.volumeUSD.plus(amountUSD);
   day.save();
 
   let transcoderDay = createOrLoadTranscoderDay(
     timestamp,
     event.params.recipient.toHex()
   );
-  transcoderDay.volumeETH = transcoderDay.volumeETH.plus(faceValue);
-  transcoderDay.volumeUSD = transcoderDay.volumeUSD.plus(faceValueUSD);
+  transcoderDay.volumeETH = transcoderDay.volumeETH.plus(amount);
+  transcoderDay.volumeUSD = transcoderDay.volumeUSD.plus(amountUSD);
   transcoderDay.save();
 
   // Manually manage the array of transcoder days (add newest to the beginning of the list)
@@ -147,9 +157,30 @@ export function winningTicketRedeemed(event: WinningTicketRedeemed): void {
   transcoder.save();
 
   // Update fee volume for this round
-  round.volumeETH = round.volumeETH.plus(faceValue);
-  round.volumeUSD = round.volumeUSD.plus(faceValueUSD);
+  round.volumeETH = round.volumeETH.plus(amount);
+  round.volumeUSD = round.volumeUSD.plus(amountUSD);
   round.save();
+}
+
+export function winningTicketTransfer(event: WinningTicketTransfer): void {
+  let round = createOrLoadRound(getBlockNum());
+  createOrLoadBroadcaster(event.params.sender.toHex());
+  createOrLoadTranscoder(
+    event.params.recipient.toHex(),
+    event.block.timestamp.toI32()
+  );
+  createOrLoadTransactionFromEvent(event);
+
+  let winningTicketTransferEvent = new WinningTicketTransferEvent(
+    makeEventId(event.transaction.hash, event.logIndex)
+  );
+  winningTicketTransferEvent.transaction = event.transaction.hash.toHex();
+  winningTicketTransferEvent.timestamp = event.block.timestamp.toI32();
+  winningTicketTransferEvent.round = round.id;
+  winningTicketTransferEvent.sender = event.params.sender.toHex();
+  winningTicketTransferEvent.recipient = event.params.recipient.toHex();
+  winningTicketTransferEvent.amount = convertToDecimal(event.params.amount);
+  winningTicketTransferEvent.save();
 }
 
 export function depositFunded(event: DepositFunded): void {

@@ -189,11 +189,8 @@ export function createOrLoadProtocol(): Protocol {
     protocol.lptPriceEth = ZERO_BD;
     protocol.activeBroadcasters = [];
 
-    const network = dataSource.network();
-    // 3520 is the count of total delegators from the mainnet subgraph (in the final round)
-    protocol.delegatorsCount = BigInt.fromI32(
-      network == "arbitrum-one" ? 3520 : 0
-    );
+    // Counted exactly from bonded-state transitions (see updateDelegatorCounts)
+    protocol.delegatorsCount = ZERO_BI;
 
     protocol.pendingActivation = [];
     protocol.pendingDeactivation = [];
@@ -266,6 +263,7 @@ export function createOrLoadTranscoder(id: string, timestamp: i32): Transcoder {
     transcoder.sixtyDayVolumeETH = ZERO_BD;
     transcoder.ninetyDayVolumeETH = ZERO_BD;
     transcoder.transcoderDays = [];
+    transcoder.delegatorCount = ZERO_BI;
     transcoder.save();
   }
 
@@ -295,6 +293,39 @@ export function createOrLoadDelegator(id: string, timestamp: i32): Delegator {
   account.save();
 
   return delegator;
+}
+
+// Keep Protocol/Round delegatorsCount and Transcoder.delegatorCount in step
+// with a delegator moving between unbonded (bondedAmount == 0) and bonded
+// states, or switching delegate while bonded. The transcoders passed in must
+// be the same instances the caller later saves, otherwise the caller's save
+// would overwrite these counts.
+export function updateDelegatorCounts(
+  wasBonded: boolean,
+  oldDelegate: Transcoder | null,
+  isBonded: boolean,
+  newDelegate: Transcoder | null,
+  protocol: Protocol,
+  round: Round
+): void {
+  if (wasBonded && !isBonded) {
+    protocol.delegatorsCount = protocol.delegatorsCount.minus(ONE_BI);
+    round.delegatorsCount = round.delegatorsCount.minus(ONE_BI);
+  } else if (!wasBonded && isBonded) {
+    protocol.delegatorsCount = protocol.delegatorsCount.plus(ONE_BI);
+    round.delegatorsCount = round.delegatorsCount.plus(ONE_BI);
+  }
+
+  let sameDelegate =
+    oldDelegate != null &&
+    newDelegate != null &&
+    oldDelegate!.id == newDelegate!.id;
+  if (wasBonded && oldDelegate != null && !(isBonded && sameDelegate)) {
+    oldDelegate!.delegatorCount = oldDelegate!.delegatorCount.minus(ONE_BI);
+  }
+  if (isBonded && newDelegate != null && !(wasBonded && sameDelegate)) {
+    newDelegate!.delegatorCount = newDelegate!.delegatorCount.plus(ONE_BI);
+  }
 }
 
 export function createOrUpdateLivepeerAccount(id: string, timestamp: i32): LivepeerAccount {

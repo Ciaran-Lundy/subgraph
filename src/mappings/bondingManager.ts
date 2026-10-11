@@ -1,4 +1,4 @@
-import { store } from "@graphprotocol/graph-ts";
+import { BigInt, log, store } from "@graphprotocol/graph-ts";
 import {
   convertToDecimal,
   createOrLoadDelegator,
@@ -9,10 +9,13 @@ import {
   createOrLoadTranscoder,
   EMPTY_ADDRESS,
   getBlockNum,
+  integerFromString,
   makeEventId,
   makeUnbondingLockId,
   MAXIMUM_VALUE_UINT256,
   ONE_BI,
+  updateDelegatorCounts,
+  ZERO_BD,
   ZERO_BI,
 } from "../../utils/helpers";
 // Import event types from the registrar contract ABIs
@@ -35,6 +38,7 @@ import {
 } from "../types/BondingManager/BondingManager";
 import {
   BondEvent,
+  Transcoder,
   EarningsClaimedEvent,
   ParameterUpdateEvent,
   RebondEvent,
@@ -69,6 +73,12 @@ export function bond(event: Bond): void {
     event.block.timestamp.toI32()
   );
   let protocol = createOrLoadProtocol();
+  let currentRound = integerFromString(round.id);
+  // Stake bonded before this event (the contract's currentBondedAmount)
+  let wasBonded = event.params.bondedAmount
+    .minus(event.params.additionalAmount)
+    .gt(ZERO_BI);
+  let oldTranscoder: Transcoder | null = null;
 
   // If self delegating, set status and assign reference to self
   if (event.params.delegator.toHex() == event.params.newDelegate.toHex()) {
@@ -78,12 +88,10 @@ export function bond(event: Bond): void {
 
   // Changing delegate
   if (
-    event.params.bondedAmount
-      .minus(event.params.additionalAmount)
-      .gt(ZERO_BI) &&
+    wasBonded &&
     event.params.oldDelegate.toHex() != event.params.newDelegate.toHex()
   ) {
-    let oldTranscoder = createOrLoadTranscoder(
+    oldTranscoder = createOrLoadTranscoder(
       event.params.oldDelegate.toHex(),
       event.block.timestamp.toI32()
     );
@@ -100,10 +108,10 @@ export function bond(event: Bond): void {
     }
 
     oldTranscoder.totalStake = convertToDecimal(oldDelegateData.value3);
+    updateLastActiveStakeUpdateRound(oldTranscoder, currentRound);
     oldDelegate.delegatedAmount = convertToDecimal(oldDelegateData.value3);
 
     oldDelegate.save();
-    oldTranscoder.save();
 
     // keep track of how much stake moved during this round.
     round.movedStake = round.movedStake.plus(
@@ -118,13 +126,22 @@ export function bond(event: Bond): void {
     );
   }
 
-  // if the old delegate is the empty address, this is a new delegator
-  if (event.params.oldDelegate.toHex() === EMPTY_ADDRESS.toHex()) {
-    round.delegatorsCount = round.delegatorsCount.plus(ONE_BI);
-    protocol.delegatorsCount = protocol.delegatorsCount.plus(ONE_BI);
+  // A delegator that fully unbonded keeps its old delegate address on-chain, so
+  // oldDelegate is not a reliable "new delegator" signal; use bonded state.
+  updateDelegatorCounts(
+    wasBonded,
+    oldTranscoder != null ? oldTranscoder : transcoder,
+    true,
+    transcoder,
+    protocol,
+    round
+  );
+  if (oldTranscoder != null) {
+    oldTranscoder.save();
   }
 
   transcoder.totalStake = convertToDecimal(delegateData.value3);
+  updateLastActiveStakeUpdateRound(transcoder, currentRound);
   delegate.delegatedAmount = convertToDecimal(delegateData.value3);
 
   delegator.delegate = event.params.newDelegate.toHex();
@@ -186,19 +203,26 @@ export function transferBond(event: TransferBond): void {
     newUnbondingLock = new UnbondingLock(newUniqueUnbondingLockId);
   }
 
+  // The old lock is written by the Unbond handler earlier in this transaction.
+  // It cannot be recovered with an eth_call: transferBond() deletes it on-chain
+  // before emitting TransferBond, and the old delegator's delegate is cleared
+  // on a full unbond.
   let oldUnbondingLock = UnbondingLock.load(oldUniqueUnbondingLockId);
   if (oldUnbondingLock === null) {
-    oldUnbondingLock = new UnbondingLock(oldUniqueUnbondingLockId);
+    log.warning(
+      "TransferBond: unbonding lock {} not found, skipping lock transfer to {}",
+      [oldUniqueUnbondingLockId, newUniqueUnbondingLockId]
+    );
+  } else {
+    newUnbondingLock.unbondingLockId = event.params.newUnbondingLockId.toI32();
+    newUnbondingLock.delegator = event.params.newDelegator.toHex();
+    newUnbondingLock.sender = event.params.oldDelegator.toHex();
+    newUnbondingLock.delegate = oldUnbondingLock.delegate;
+    newUnbondingLock.withdrawRound = oldUnbondingLock.withdrawRound;
+    newUnbondingLock.amount = convertToDecimal(event.params.amount);
+
+    newUnbondingLock.save();
   }
-
-  newUnbondingLock.unbondingLockId = event.params.newUnbondingLockId.toI32();
-  newUnbondingLock.delegator = event.params.newDelegator.toHex();
-  newUnbondingLock.sender = event.params.oldDelegator.toHex();
-  newUnbondingLock.delegate = oldUnbondingLock.delegate;
-  newUnbondingLock.withdrawRound = oldUnbondingLock.withdrawRound;
-  newUnbondingLock.amount = convertToDecimal(event.params.amount);
-
-  newUnbondingLock.save();
 
   // Remove unbonding lock for old delegator since it has been transferred to the new delegator
   store.remove("UnbondingLock", oldUniqueUnbondingLockId);
@@ -251,8 +275,18 @@ export function unbond(event: Unbond): void {
 
   delegate.delegatedAmount = convertToDecimal(delegateData.value3);
   transcoder.totalStake = convertToDecimal(delegateData.value3);
+  updateLastActiveStakeUpdateRound(transcoder, integerFromString(round.id));
 
   let delegatorData = bondingManager.getDelegator(event.params.delegator);
+  // unbond() requires the delegator to be bonded
+  updateDelegatorCounts(
+    true,
+    transcoder,
+    !delegatorData.value0.isZero(),
+    transcoder,
+    protocol,
+    round
+  );
   delegator.lastClaimRound = round.id;
   delegator.bondedAmount = convertToDecimal(delegatorData.value0);
   delegator.fees = convertToDecimal(delegatorData.value1);
@@ -273,9 +307,6 @@ export function unbond(event: Unbond): void {
 
     // Update delegator's delegate
     delegator.delegate = null;
-
-    round.delegatorsCount = round.delegatorsCount.minus(ONE_BI);
-    protocol.delegatorsCount = protocol.delegatorsCount.minus(ONE_BI);
   }
 
   unbondingLock.unbondingLockId = event.params.unbondingLockId.toI32();
@@ -333,17 +364,24 @@ export function rebond(event: Rebond): void {
   );
   let unbondingLock = UnbondingLock.load(uniqueUnbondingLockId);
 
+  let wasBonded = delegator.bondedAmount.gt(ZERO_BD);
+
   // If rebonding from unbonded
-  if (!delegator.delegate) {
+  if (!wasBonded) {
     // If self-bonding then update transcoder status
     if (event.params.delegate.toHex() == event.params.delegator.toHex()) {
       transcoder.status = "Registered";
       transcoder.delegator = event.params.delegator.toHex();
     }
-
-    round.delegatorsCount = round.delegatorsCount.plus(ONE_BI);
-    protocol.delegatorsCount = protocol.delegatorsCount.plus(ONE_BI);
   }
+  updateDelegatorCounts(
+    wasBonded,
+    transcoder,
+    true,
+    transcoder,
+    protocol,
+    round
+  );
 
   // update delegator
   let delegatorData = bondingManager.getDelegator(event.params.delegator);
@@ -366,12 +404,14 @@ export function rebond(event: Rebond): void {
   // update delegate
   delegate.delegatedAmount = convertToDecimal(delegateData.value3);
   transcoder.totalStake = convertToDecimal(delegateData.value3);
+  updateLastActiveStakeUpdateRound(transcoder, integerFromString(round.id));
 
   // Apply store updates
   delegate.save();
   transcoder.save();
   delegator.save();
   protocol.save();
+  round.save();
 
   if (unbondingLock) {
     store.remove("UnbondingLock", uniqueUnbondingLockId);
@@ -495,6 +535,7 @@ export function reward(event: Reward): void {
     convertToDecimal(event.params.amount)
   );
   transcoder.lastRewardRound = round.id;
+  updateLastActiveStakeUpdateRound(transcoder, integerFromString(round.id));
 
   pool.rewardTokens = convertToDecimal(event.params.amount);
   pool.feeShare = transcoder.feeShare;
@@ -552,11 +593,11 @@ export function transcoderUpdate(event: TranscoderUpdate): void {
     event.params.transcoder.toHex(),
     event.block.timestamp.toI32()
   );
-  if (transcoder.rewardCut !== event.params.rewardCut) {
+  if (transcoder.rewardCut.notEqual(event.params.rewardCut)) {
     transcoder.rewardCut = event.params.rewardCut;
     transcoder.rewardCutUpdateTimestamp = event.block.timestamp.toI32();
   }
-  if (transcoder.feeShare !== event.params.feeShare) {
+  if (transcoder.feeShare.notEqual(event.params.feeShare)) {
     transcoder.feeShare = event.params.feeShare;
     transcoder.feeShareUpdateTimestamp = event.block.timestamp.toI32();
   }
@@ -716,4 +757,21 @@ export function earningsClaimed(event: EarningsClaimed): void {
   earningsClaimedEvent.rewardTokens = convertToDecimal(event.params.rewards);
   earningsClaimedEvent.fees = convertToDecimal(event.params.fees);
   earningsClaimedEvent.save();
+}
+
+// Mirrors BondingManager.increaseTotalStake()/decreaseTotalStake(), which move
+// lastActiveStakeUpdateRound to currentRound + 1 only when the transcoder is
+// active in the current round or will be active in the next one.
+function updateLastActiveStakeUpdateRound(
+  transcoder: Transcoder,
+  currentRound: BigInt
+): void {
+  let nextRound = currentRound.plus(ONE_BI);
+  if (
+    transcoder.activationRound.gt(ZERO_BI) &&
+    transcoder.activationRound.le(nextRound) &&
+    transcoder.deactivationRound.gt(currentRound)
+  ) {
+    transcoder.lastActiveStakeUpdateRound = nextRound;
+  }
 }

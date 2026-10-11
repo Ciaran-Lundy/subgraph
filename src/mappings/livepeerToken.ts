@@ -38,8 +38,8 @@ export function mint(event: Mint): void {
   day.totalSupply = totalSupply;
   day.totalActiveStake = protocol.totalActiveStake;
 
-  // check if total active stake is greater than 0 to avoid divide by zero
-  if (protocol.totalActiveStake.gt(ZERO_BD)) {
+  // check both operands are greater than 0 to avoid divide by zero
+  if (protocol.totalActiveStake.gt(ZERO_BD) && totalSupply.gt(ZERO_BD)) {
     protocol.participationRate = protocol.totalActiveStake.div(totalSupply);
     day.participationRate = protocol.participationRate;
   }
@@ -91,7 +91,7 @@ export function burn(event: Burn): void {
   day.totalSupply = totalSupply;
   day.totalActiveStake = protocol.totalActiveStake;
 
-  if (protocol.totalActiveStake.gt(ZERO_BD)) {
+  if (protocol.totalActiveStake.gt(ZERO_BD) && totalSupply.gt(ZERO_BD)) {
     protocol.participationRate = protocol.totalActiveStake.div(totalSupply);
     day.participationRate = protocol.participationRate;
   }

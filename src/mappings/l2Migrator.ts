@@ -28,7 +28,7 @@ export function migrateDelegatorFinalized(
   migrateDelegatorFinalizedEvent.timestamp = event.block.timestamp.toI32();
   migrateDelegatorFinalizedEvent.round = round.id;
   migrateDelegatorFinalizedEvent.l1Addr = event.params.params.l1Addr.toHex();
-  migrateDelegatorFinalizedEvent.l2Addr = event.params.params.l1Addr.toHex();
+  migrateDelegatorFinalizedEvent.l2Addr = event.params.params.l2Addr.toHex();
   migrateDelegatorFinalizedEvent.stake = convertToDecimal(
     event.params.params.stake
   );

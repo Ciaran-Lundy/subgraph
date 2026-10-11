@@ -213,6 +213,7 @@ dataSources:
         - Broadcaster
         - Round
         - WinningTicketRedeemedEvent
+        - WinningTicketTransferEvent
         - ReserveFundedEvent
         - ReserveClaimedEvent
         - DepositFundedEvent
@@ -220,6 +221,8 @@ dataSources:
       eventHandlers:
         - event: WinningTicketRedeemed(indexed address,indexed address,uint256,uint256,uint256,uint256,bytes)
           handler: winningTicketRedeemed
+        - event: WinningTicketTransfer(indexed address,indexed address,uint256)
+          handler: winningTicketTransfer
         - event: DepositFunded(indexed address,uint256)
           handler: depositFunded
         - event: ReserveFunded(indexed address,uint256)
