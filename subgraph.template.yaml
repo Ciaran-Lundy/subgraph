@@ -474,8 +474,6 @@ dataSources:
         - event: SetContractInfo(bytes32,address,bytes20)
           handler: setContractInfo
           receipt: true
-          calls:
-            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
   - kind: ethereum/contract
     name: PollCreator
     network: {{networkName}}

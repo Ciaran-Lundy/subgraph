@@ -248,10 +248,10 @@ export function transferBond(event: TransferBond): void {
     newUnbondingLock.amount = convertToDecimal(event.params.amount);
 
     newUnbondingLock.save();
-  }
 
-  // Remove unbonding lock for old delegator since it has been transferred to the new delegator
-  store.remove("UnbondingLock", oldUniqueUnbondingLockId);
+    // Remove unbonding lock for old delegator since it has been transferred to the new delegator
+    store.remove("UnbondingLock", oldUniqueUnbondingLockId);
+  }
 
   createOrLoadTransactionFromEvent(event);
   let transferBondEvent = new TransferBondEvent(

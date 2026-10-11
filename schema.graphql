@@ -1210,16 +1210,18 @@ type TreasuryRewardEvent implements Event @entity(immutable: true) {
 
 """
 SetContractInfoEvent entities are created for every emitted Controller SetContractInfo event.
+They do not implement Event: the Controller registers contracts while the
+protocol is being deployed, before RoundsManager exists to resolve a round.
 """
-type SetContractInfoEvent implements Event @entity(immutable: true) {
+type SetContractInfoEvent @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
   transaction: Transaction!
   "Timestamp of the transaction the event was included in"
   timestamp: Int!
-  "Reference to the round the event occured in"
-  round: Round!
+  "Block the event was included in"
+  blockNumber: BigInt!
   "keccak256 hash of the registered contract name"
   contractId: Bytes!
   "Address registered for the contract id"

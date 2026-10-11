@@ -56,13 +56,9 @@ export function unpause(event: Unpause): void {
   unpauseEvent.save();
 }
 
+// Runs during protocol deployment, so it must not touch Protocol or Round:
+// both make RoundsManager calls that revert before it is deployed
 export function setContractInfo(event: SetContractInfo): void {
-  let protocol = createOrLoadProtocol();
-  let round = createOrLoadRound(
-    protocol,
-    getBlockNum(protocol, event.block)
-  );
-
   createOrLoadTransactionFromEvent(event);
 
   let setContractInfoEvent = new SetContractInfoEvent(
@@ -70,7 +66,7 @@ export function setContractInfo(event: SetContractInfo): void {
   );
   setContractInfoEvent.transaction = event.transaction.hash.toHex();
   setContractInfoEvent.timestamp = event.block.timestamp.toI32();
-  setContractInfoEvent.round = round.id;
+  setContractInfoEvent.blockNumber = event.block.number;
   setContractInfoEvent.contractId = event.params.id;
   setContractInfoEvent.contractAddress = event.params.contractAddress.toHex();
   setContractInfoEvent.gitCommitHash = event.params.gitCommitHash;

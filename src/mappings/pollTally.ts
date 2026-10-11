@@ -209,35 +209,43 @@ export function updateVotesOnBond(
   }
 
   // The delegator's own votes now carry its new bonded amount, which moves
-  // from the old delegate's nonVoteStake to the new delegate's
-  if (delegatorAddress != newDelegateAddress) {
-    let delegatorVotes = batch.openVotesOf(delegatorAddress);
-    for (let i = 0; i < delegatorVotes.length; i++) {
-      let vote = delegatorVotes[i];
-      if (!hasCastVote(vote)) {
-        continue;
-      }
-      let pollId = pollIdFromVoteId(vote.id);
-      let newDelegateVote = batch.getOrCreate(newDelegateAddress, pollId);
-      newDelegateVote.registeredTranscoder = isRegistered(newDelegate);
-
-      if (isSwitchingDelegates) {
-        let oldDelegateVote = batch.get(oldDelegateAddress, pollId);
-        if (oldDelegateVote) {
-          oldDelegateVote.nonVoteStake =
-            oldDelegateVote.nonVoteStake.minus(previousBondedAmount);
-        }
-        newDelegateVote.nonVoteStake =
-          newDelegateVote.nonVoteStake.plus(bondedAmount);
-      } else {
-        newDelegateVote.nonVoteStake = newDelegateVote.nonVoteStake
-          .minus(vote.voteStake)
-          .plus(bondedAmount);
-      }
-
-      vote.voteStake = bondedAmount;
-      vote.delegate = newDelegateAddress;
+  // from the old delegate's nonVoteStake to the new delegate's. A delegator
+  // bonding to itself (registering) only leaves the old delegate: its own
+  // vote stake was refreshed above as the new delegate's.
+  let delegatorVotes = batch.openVotesOf(delegatorAddress);
+  for (let i = 0; i < delegatorVotes.length; i++) {
+    let vote = delegatorVotes[i];
+    if (!hasCastVote(vote)) {
+      continue;
     }
+    let pollId = pollIdFromVoteId(vote.id);
+
+    if (isSwitchingDelegates) {
+      let oldDelegateVote = batch.get(oldDelegateAddress, pollId);
+      if (oldDelegateVote) {
+        oldDelegateVote.nonVoteStake =
+          oldDelegateVote.nonVoteStake.minus(previousBondedAmount);
+      }
+    }
+
+    if (delegatorAddress == newDelegateAddress) {
+      vote.delegate = null;
+      continue;
+    }
+
+    let newDelegateVote = batch.getOrCreate(newDelegateAddress, pollId);
+    newDelegateVote.registeredTranscoder = isRegistered(newDelegate);
+    if (isSwitchingDelegates) {
+      newDelegateVote.nonVoteStake =
+        newDelegateVote.nonVoteStake.plus(bondedAmount);
+    } else {
+      newDelegateVote.nonVoteStake = newDelegateVote.nonVoteStake
+        .minus(vote.voteStake)
+        .plus(bondedAmount);
+    }
+
+    vote.voteStake = bondedAmount;
+    vote.delegate = newDelegateAddress;
   }
 
   batch.commit();
