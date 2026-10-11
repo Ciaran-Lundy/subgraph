@@ -39,6 +39,8 @@ dataSources:
           - TranscoderDeactivatedEvent
           - TranscoderSlashedEvent
           - TranscoderUpdateEvent
+          - TreasuryRewardEvent
+          - SetControllerEvent
           - UnbondEvent
           - UnbondingLock
           - WithdrawFeesEvent
@@ -70,6 +72,12 @@ dataSources:
           handler: parameterUpdate
         - event: TransferBond(indexed address,indexed address,uint256,uint256,uint256)
           handler: transferBond
+        - event: TranscoderSlashed(indexed address,address,uint256,uint256)
+          handler: transcoderSlashed
+        - event: TreasuryReward(indexed address,address,uint256)
+          handler: treasuryReward
+        - event: SetController(address)
+          handler: setController
   - kind: ethereum/contract
     name: L2Migrator
     network: {{networkName}}
@@ -89,10 +97,20 @@ dataSources:
           file: ./abis/RoundsManager.json
       entities:
         - MigrateDelegatorFinalizedEvent
+        - MigrateSenderFinalizedEvent
+        - MigrateUnbondingLocksFinalizedEvent
+        - DelegatorPoolCreatedEvent
+        - StakeClaimedEvent
         - Transaction
       eventHandlers:
         - event: MigrateDelegatorFinalized((address,address,uint256,uint256,uint256,address))
           handler: migrateDelegatorFinalized
+        - event: MigrateSenderFinalized((address,address,uint256,uint256))
+          handler: migrateSenderFinalized
+        - event: MigrateUnbondingLocksFinalized((address,address,uint256,uint256[],address))
+          handler: migrateUnbondingLocksFinalized
+        - event: DelegatorPoolCreated(indexed address,address)
+          handler: delegatorPoolCreated
         - event: StakeClaimed(indexed address,address,uint256,uint256)
           handler: stakeClaimed
   - kind: ethereum/contract
@@ -153,11 +171,14 @@ dataSources:
         - Protocol
         - ParameterUpdateEvent
         - SetCurrentRewardTokensEvent
+        - SetControllerEvent
       eventHandlers:
         - event: SetCurrentRewardTokens(uint256,uint256)
           handler: setCurrentRewardTokens
         - event: ParameterUpdate(string)
           handler: parameterUpdate
+        - event: SetController(address)
+          handler: setController
   - kind: ethereum/contract
     name: Minter
     network: {{networkName}}
@@ -181,11 +202,14 @@ dataSources:
         - Protocol
         - ParameterUpdateEvent
         - SetCurrentRewardTokensEvent
+        - SetControllerEvent
       eventHandlers:
         - event: SetCurrentRewardTokens(uint256,uint256)
           handler: setCurrentRewardTokens
         - event: ParameterUpdate(string)
           handler: parameterUpdate
+        - event: SetController(address)
+          handler: setController
   - kind: ethereum/contract
     name: TicketBroker
     network: {{networkName}}
@@ -218,6 +242,10 @@ dataSources:
         - ReserveClaimedEvent
         - DepositFundedEvent
         - WithdrawalEvent
+        - UnlockEvent
+        - UnlockCancelledEvent
+        - ParameterUpdateEvent
+        - SetControllerEvent
       eventHandlers:
         - event: WinningTicketRedeemed(indexed address,indexed address,uint256,uint256,uint256,uint256,bytes)
           handler: winningTicketRedeemed
@@ -231,6 +259,14 @@ dataSources:
           handler: reserveClaimed
         - event: Withdrawal(indexed address,uint256,uint256)
           handler: withdrawal
+        - event: Unlock(indexed address,uint256,uint256)
+          handler: unlock
+        - event: UnlockCancelled(indexed address)
+          handler: unlockCancelled
+        - event: ParameterUpdate(string)
+          handler: parameterUpdate
+        - event: SetController(address)
+          handler: setController
   - kind: ethereum/contract
     name: Controller
     network: {{networkName}}
@@ -249,13 +285,19 @@ dataSources:
         - name: RoundsManager
           file: ./abis/RoundsManager.json
       entities:
-        - Pause
-        - Unpause
+        - PauseEvent
+        - UnpauseEvent
+        - SetContractInfoEvent
+        - Protocol
+        - Round
+        - Transaction
       eventHandlers:
         - event: Pause()
           handler: pause
         - event: Unpause()
           handler: unpause
+        - event: SetContractInfo(bytes32,address,bytes20)
+          handler: setContractInfo
   - kind: ethereum/contract
     name: PollCreator
     network: {{networkName}}
@@ -302,6 +344,7 @@ dataSources:
         - TreasuryProposal
         - TreasuryVote
         - TreasuryVoteEvent
+        - SetControllerEvent
         - LivepeerAccount
         - Round
         - Protocol
@@ -313,6 +356,14 @@ dataSources:
           handler: voteCast
         - event: VoteCastWithParams(indexed address,uint256,uint8,uint256,string,bytes)
           handler: voteCastWithParams
+        - event: ProposalCanceled(uint256)
+          handler: proposalCanceled
+        - event: ProposalQueued(uint256,uint256)
+          handler: proposalQueued
+        - event: ProposalExecuted(uint256)
+          handler: proposalExecuted
+        - event: SetController(address)
+          handler: setController
   - kind: ethereum/contract
     name: ServiceRegistry
     network: {{networkName}}
@@ -369,6 +420,75 @@ dataSources:
           handler: mint
         - event: Burn(indexed address,uint256)
           handler: burn
+{{#if contracts.bondingVotes}}
+  - kind: ethereum/contract
+    name: BondingVotes
+    network: {{networkName}}
+    source:
+      startBlock: {{contracts.bondingVotes.startBlock}}
+      address: {{contracts.bondingVotes.address}}
+      abi: BondingVotes
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.6
+      language: wasm/assemblyscript
+      file: ./src/mappings/bondingVotes.ts
+      abis:
+        - name: BondingVotes
+          file: ./abis/BondingVotes.json
+        - name: RoundsManager
+          file: ./abis/RoundsManager.json
+      entities:
+        - DelegatorBondedAmountChangedEvent
+        - DelegateChangedEvent
+        - DelegateVotesChangedEvent
+        - Protocol
+        - Round
+        - Transaction
+      eventHandlers:
+        - event: DelegatorBondedAmountChanged(indexed address,uint256,uint256,uint256,uint256)
+          handler: delegatorBondedAmountChanged
+        - event: DelegateChanged(indexed address,indexed address,indexed address)
+          handler: delegateChanged
+        - event: DelegateVotesChanged(indexed address,uint256,uint256)
+          handler: delegateVotesChanged
+{{/if}}
+{{#if contracts.treasury}}
+  - kind: ethereum/contract
+    name: TreasuryTimelock
+    network: {{networkName}}
+    source:
+      startBlock: {{contracts.treasury.startBlock}}
+      address: {{contracts.treasury.address}}
+      abi: Treasury
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.6
+      language: wasm/assemblyscript
+      file: ./src/mappings/treasuryTimelock.ts
+      abis:
+        - name: Treasury
+          file: ./abis/Treasury.json
+        - name: RoundsManager
+          file: ./abis/RoundsManager.json
+      entities:
+        - TreasuryCallScheduledEvent
+        - TreasuryCallExecutedEvent
+        - TreasuryOperationCancelledEvent
+        - TreasuryMinDelayChangeEvent
+        - Protocol
+        - Round
+        - Transaction
+      eventHandlers:
+        - event: CallScheduled(indexed bytes32,indexed uint256,address,uint256,bytes,bytes32,uint256)
+          handler: callScheduled
+        - event: CallExecuted(indexed bytes32,indexed uint256,address,uint256,bytes)
+          handler: callExecuted
+        - event: Cancelled(indexed bytes32)
+          handler: cancelled
+        - event: MinDelayChange(uint256,uint256)
+          handler: minDelayChange
+{{/if}}
 ###############################################################################
 #
 # Data source templates

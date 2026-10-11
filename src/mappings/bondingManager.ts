@@ -27,11 +27,13 @@ import {
   Rebond,
   Reward,
   RewardCallerSet,
+  SetController,
   TranscoderActivated,
   TranscoderDeactivated,
   TranscoderSlashed,
   TranscoderUpdate,
   TransferBond,
+  TreasuryReward,
   Unbond,
   WithdrawFees,
   WithdrawStake,
@@ -49,11 +51,13 @@ import {
   TranscoderSlashedEvent,
   TranscoderUpdateEvent,
   TransferBondEvent,
+  TreasuryRewardEvent,
   UnbondEvent,
   UnbondingLock,
   WithdrawFeesEvent,
   WithdrawStakeEvent,
 } from "../types/schema";
+import { recordSetController } from "./common";
 
 export function bond(event: Bond): void {
   let bondingManager = BondingManager.bind(event.address);
@@ -612,6 +616,9 @@ export function transcoderSlashed(event: TranscoderSlashed): void {
   transcoderSlashedEvent.timestamp = event.block.timestamp.toI32();
   transcoderSlashedEvent.round = round.id;
   transcoderSlashedEvent.delegate = event.params.transcoder.toHex();
+  transcoderSlashedEvent.finder = event.params.finder;
+  transcoderSlashedEvent.penalty = convertToDecimal(event.params.penalty);
+  transcoderSlashedEvent.finderReward = event.params.finderReward;
   transcoderSlashedEvent.save();
 }
 
@@ -820,4 +827,33 @@ function updateLastActiveStakeUpdateRound(
   ) {
     transcoder.lastActiveStakeUpdateRound = nextRound;
   }
+}
+
+export function treasuryReward(event: TreasuryReward): void {
+  let protocol = createOrLoadProtocol();
+  let round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
+  createOrLoadTranscoder(
+    event.params.transcoder.toHex(),
+    event.block.timestamp.toI32()
+  );
+
+  createOrLoadTransactionFromEvent(event);
+
+  let treasuryRewardEvent = new TreasuryRewardEvent(
+    makeEventId(event.transaction.hash, event.logIndex)
+  );
+  treasuryRewardEvent.transaction = event.transaction.hash.toHex();
+  treasuryRewardEvent.timestamp = event.block.timestamp.toI32();
+  treasuryRewardEvent.round = round.id;
+  treasuryRewardEvent.delegate = event.params.transcoder.toHex();
+  treasuryRewardEvent.treasury = event.params.treasury.toHex();
+  treasuryRewardEvent.amount = convertToDecimal(event.params.amount);
+  treasuryRewardEvent.save();
+}
+
+export function setController(event: SetController): void {
+  recordSetController(event, event.params.controller);
 }

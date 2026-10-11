@@ -222,6 +222,7 @@ export function createOrLoadBroadcaster(id: string): Broadcaster {
     broadcaster.lastFundedDay = 0;
     broadcaster.lastActiveDay = 0;
     broadcaster.broadcasterDays = [];
+    broadcaster.isUnlocked = false;
 
     broadcaster.save();
   } 

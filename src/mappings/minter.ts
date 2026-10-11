@@ -9,12 +9,14 @@ import {
 import {
   Minter,
   ParameterUpdate,
+  SetController,
   SetCurrentRewardTokens,
 } from "../types/Minter/Minter";
 import {
   ParameterUpdateEvent,
   SetCurrentRewardTokensEvent,
 } from "../types/schema";
+import { recordSetController } from "./common";
 
 export function setCurrentRewardTokens(event: SetCurrentRewardTokens): void {
   let minter = Minter.bind(event.address);
@@ -80,4 +82,8 @@ export function parameterUpdate(event: ParameterUpdate): void {
   parameterUpdateEvent.round = round.id;
   parameterUpdateEvent.param = event.params.param;
   parameterUpdateEvent.save();
+}
+
+export function setController(event: SetController): void {
+  recordSetController(event, event.params.controller);
 }

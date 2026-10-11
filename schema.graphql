@@ -265,6 +265,12 @@ type Broadcaster @entity {
   lastActiveDay: Int! @deprecated(reason: "Use lastFundedDay instead.")
   "Days in which this broadcaster paid out fees"
   broadcasterDays: [BroadcasterDay!]!
+  "True while an unlock is in progress (set by Unlock, cleared by UnlockCancelled)"
+  isUnlocked: Boolean!
+  "Round in which the current or most recent unlock was initiated"
+  unlockStartRound: BigInt
+  "Round after which the current or most recent unlock allows withdrawal"
+  unlockEndRound: BigInt
 }
 
 """
@@ -424,6 +430,10 @@ type TreasuryProposal @entity {
   voteEnd: BigInt!
   "Description of the proposal"
   description: String!
+  "Lifecycle status from Governor events. Active/Defeated/Succeeded have no event; derive them by comparing voteStart/voteEnd to the current round"
+  status: TreasuryProposalStatus!
+  "Timestamp after which a queued proposal can be executed - null until queued"
+  eta: BigInt
   "Votes cast for this proposal"
   votes: [TreasuryVote!]! @derivedFrom(field: "proposal")
   "Total weight of votes in favor"
@@ -434,6 +444,14 @@ type TreasuryProposal @entity {
   abstainVotes: BigDecimal!
   "Sum of all vote weights"
   totalVotes: BigDecimal!
+}
+
+enum TreasuryProposalStatus {
+  "Created and not yet queued, executed or canceled"
+  Pending
+  Canceled
+  Queued
+  Executed
 }
 
 enum TreasuryVoteSupport{
@@ -1152,4 +1170,281 @@ type StakeClaimedEvent implements Event @entity {
   delegate: String!
   stake: BigDecimal!
   fees: BigDecimal!
+}
+
+"""
+TreasuryRewardEvent entities are created for every emitted TreasuryReward event.
+"""
+type TreasuryRewardEvent implements Event @entity {
+  "Ethereum transaction hash + event log index"
+  id: ID!
+  "Reference to the transaction the event was included in"
+  transaction: Transaction!
+  "Timestamp of the transaction the event was included in"
+  timestamp: Int!
+  "Reference to the round the event occured in"
+  round: Round!
+  "Reference to the transcoder whose reward call funded the treasury"
+  delegate: Transcoder!
+  "Treasury address that received the tokens"
+  treasury: String!
+  "Amount of LPT sent to the treasury"
+  amount: BigDecimal!
+}
+
+"""
+SetContractInfoEvent entities are created for every emitted Controller SetContractInfo event.
+"""
+type SetContractInfoEvent implements Event @entity {
+  "Ethereum transaction hash + event log index"
+  id: ID!
+  "Reference to the transaction the event was included in"
+  transaction: Transaction!
+  "Timestamp of the transaction the event was included in"
+  timestamp: Int!
+  "Reference to the round the event occured in"
+  round: Round!
+  "keccak256 hash of the registered contract name"
+  contractId: Bytes!
+  "Address registered for the contract id"
+  contractAddress: String!
+  "Git commit hash of the registered contract source"
+  gitCommitHash: Bytes!
+}
+
+"""
+SetControllerEvent entities are created for every emitted SetController event on a managed contract.
+"""
+type SetControllerEvent implements Event @entity {
+  "Ethereum transaction hash + event log index"
+  id: ID!
+  "Reference to the transaction the event was included in"
+  transaction: Transaction!
+  "Timestamp of the transaction the event was included in"
+  timestamp: Int!
+  "Reference to the round the event occured in"
+  round: Round!
+  "Address of the managed contract that emitted the event"
+  contractAddress: String!
+  "New Controller address"
+  controller: String!
+}
+
+"""
+UnlockEvent entities are created for every emitted TicketBroker Unlock event.
+"""
+type UnlockEvent implements Event @entity {
+  "Ethereum transaction hash + event log index"
+  id: ID!
+  "Reference to the transaction the event was included in"
+  transaction: Transaction!
+  "Timestamp of the transaction the event was included in"
+  timestamp: Int!
+  "Reference to the round the event occured in"
+  round: Round!
+  "Reference to the broadcaster that initiated the unlock"
+  sender: Broadcaster!
+  "Round in which the unlock was initiated"
+  startRound: BigInt!
+  "Round after which the broadcaster can withdraw"
+  endRound: BigInt!
+}
+
+"""
+UnlockCancelledEvent entities are created for every emitted TicketBroker UnlockCancelled event.
+"""
+type UnlockCancelledEvent implements Event @entity {
+  "Ethereum transaction hash + event log index"
+  id: ID!
+  "Reference to the transaction the event was included in"
+  transaction: Transaction!
+  "Timestamp of the transaction the event was included in"
+  timestamp: Int!
+  "Reference to the round the event occured in"
+  round: Round!
+  "Reference to the broadcaster whose unlock was cancelled"
+  sender: Broadcaster!
+}
+
+"""
+DelegatorPoolCreatedEvent entities are created for every emitted L2Migrator DelegatorPoolCreated event.
+"""
+type DelegatorPoolCreatedEvent implements Event @entity {
+  "Ethereum transaction hash + event log index"
+  id: ID!
+  "Reference to the transaction the event was included in"
+  transaction: Transaction!
+  "Timestamp of the transaction the event was included in"
+  timestamp: Int!
+  "Reference to the round the event occured in"
+  round: Round!
+  l1Addr: String!
+  delegatorPool: String!
+}
+
+"""
+MigrateSenderFinalizedEvent entities are created for every emitted L2Migrator MigrateSenderFinalized event.
+"""
+type MigrateSenderFinalizedEvent implements Event @entity {
+  "Ethereum transaction hash + event log index"
+  id: ID!
+  "Reference to the transaction the event was included in"
+  transaction: Transaction!
+  "Timestamp of the transaction the event was included in"
+  timestamp: Int!
+  "Reference to the round the event occured in"
+  round: Round!
+  l1Addr: String!
+  l2Addr: String!
+  deposit: BigDecimal!
+  reserve: BigDecimal!
+}
+
+"""
+MigrateUnbondingLocksFinalizedEvent entities are created for every emitted L2Migrator MigrateUnbondingLocksFinalized event.
+"""
+type MigrateUnbondingLocksFinalizedEvent implements Event @entity {
+  "Ethereum transaction hash + event log index"
+  id: ID!
+  "Reference to the transaction the event was included in"
+  transaction: Transaction!
+  "Timestamp of the transaction the event was included in"
+  timestamp: Int!
+  "Reference to the round the event occured in"
+  round: Round!
+  l1Addr: String!
+  l2Addr: String!
+  total: BigDecimal!
+  unbondingLockIds: [BigInt!]!
+  delegate: String!
+}
+
+"""
+DelegatorBondedAmountChangedEvent entities are created for every emitted BondingVotes DelegatorBondedAmountChanged event.
+"""
+type DelegatorBondedAmountChangedEvent implements Event @entity {
+  "Ethereum transaction hash + event log index"
+  id: ID!
+  "Reference to the transaction the event was included in"
+  transaction: Transaction!
+  "Timestamp of the transaction the event was included in"
+  timestamp: Int!
+  "Reference to the round the event occured in"
+  round: Round!
+  "Delegator whose bonding checkpoint changed (the event's indexed address)"
+  delegator: String!
+  previousBondedAmount: BigDecimal!
+  previousLastClaimRound: BigInt!
+  newBondedAmount: BigDecimal!
+  newLastClaimRound: BigInt!
+}
+
+"""
+DelegateChangedEvent entities are created for every emitted BondingVotes DelegateChanged event.
+"""
+type DelegateChangedEvent implements Event @entity {
+  "Ethereum transaction hash + event log index"
+  id: ID!
+  "Reference to the transaction the event was included in"
+  transaction: Transaction!
+  "Timestamp of the transaction the event was included in"
+  timestamp: Int!
+  "Reference to the round the event occured in"
+  round: Round!
+  delegator: String!
+  fromDelegate: String!
+  toDelegate: String!
+}
+
+"""
+DelegateVotesChangedEvent entities are created for every emitted BondingVotes DelegateVotesChanged event.
+"""
+type DelegateVotesChangedEvent implements Event @entity {
+  "Ethereum transaction hash + event log index"
+  id: ID!
+  "Reference to the transaction the event was included in"
+  transaction: Transaction!
+  "Timestamp of the transaction the event was included in"
+  timestamp: Int!
+  "Reference to the round the event occured in"
+  round: Round!
+  delegate: String!
+  previousBalance: BigDecimal!
+  newBalance: BigDecimal!
+}
+
+"""
+TreasuryCallScheduledEvent entities are created for every emitted Treasury (timelock) CallScheduled event.
+"""
+type TreasuryCallScheduledEvent implements Event @entity {
+  "Ethereum transaction hash + event log index"
+  id: ID!
+  "Reference to the transaction the event was included in"
+  transaction: Transaction!
+  "Timestamp of the transaction the event was included in"
+  timestamp: Int!
+  "Reference to the round the event occured in"
+  round: Round!
+  "Timelock operation id"
+  operationId: Bytes!
+  "Index of the call within the operation batch"
+  index: BigInt!
+  target: String!
+  value: BigInt!
+  data: Bytes!
+  predecessor: Bytes!
+  delay: BigInt!
+}
+
+"""
+TreasuryCallExecutedEvent entities are created for every emitted Treasury (timelock) CallExecuted event.
+"""
+type TreasuryCallExecutedEvent implements Event @entity {
+  "Ethereum transaction hash + event log index"
+  id: ID!
+  "Reference to the transaction the event was included in"
+  transaction: Transaction!
+  "Timestamp of the transaction the event was included in"
+  timestamp: Int!
+  "Reference to the round the event occured in"
+  round: Round!
+  "Timelock operation id"
+  operationId: Bytes!
+  "Index of the call within the operation batch"
+  index: BigInt!
+  target: String!
+  value: BigInt!
+  data: Bytes!
+}
+
+"""
+TreasuryOperationCancelledEvent entities are created for every emitted Treasury (timelock) Cancelled event.
+"""
+type TreasuryOperationCancelledEvent implements Event @entity {
+  "Ethereum transaction hash + event log index"
+  id: ID!
+  "Reference to the transaction the event was included in"
+  transaction: Transaction!
+  "Timestamp of the transaction the event was included in"
+  timestamp: Int!
+  "Reference to the round the event occured in"
+  round: Round!
+  "Timelock operation id"
+  operationId: Bytes!
+}
+
+"""
+TreasuryMinDelayChangeEvent entities are created for every emitted Treasury (timelock) MinDelayChange event.
+"""
+type TreasuryMinDelayChangeEvent implements Event @entity {
+  "Ethereum transaction hash + event log index"
+  id: ID!
+  "Reference to the transaction the event was included in"
+  transaction: Transaction!
+  "Timestamp of the transaction the event was included in"
+  timestamp: Int!
+  "Reference to the round the event occured in"
+  round: Round!
+  oldDuration: BigInt!
+  newDuration: BigInt!
 }

@@ -33,6 +33,12 @@ arbitrum-one:
     l2Migrator:
       address: "148D5b6B4df9530c7C76A810bd1Cdf69EC4c2085"
       startBlock: 5864923
+    bondingVotes:
+      address: "0B9C254837E72Ebe9Fe04960C43B69782E68169A"
+      startBlock: 139793454
+    treasury:
+      address: "f82C1FF415F1fCf582554fDba790E27019c8E8C4"
+      startBlock: 139793473
   networkName: arbitrum-one
 arbitrum-goerli:
   contracts:

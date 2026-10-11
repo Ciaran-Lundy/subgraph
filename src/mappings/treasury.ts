@@ -16,16 +16,28 @@ import {
   TreasuryVoteEvent,
 } from "../types/schema";
 import {
+  ProposalCanceled,
   ProposalCreated,
+  ProposalExecuted,
+  ProposalQueued,
+  SetController,
   VoteCast,
   VoteCastWithParams,
 } from "../types/Treasury/LivepeerGovernor";
+import { recordSetController } from "./common";
 
 // Workaround: Graph entities store enums as strings (no string enums in AS/codegen).
 namespace TreasurySupport {
   export const Against = "Against";
   export const For = "For";
   export const Abstain = "Abstain";
+}
+
+namespace TreasuryProposalStatus {
+  export const Pending = "Pending";
+  export const Canceled = "Canceled";
+  export const Queued = "Queued";
+  export const Executed = "Executed";
 }
 
 export function proposalCreated(event: ProposalCreated): void {
@@ -43,6 +55,7 @@ export function proposalCreated(event: ProposalCreated): void {
   proposal.voteStart = p.voteStart;
   proposal.voteEnd = p.voteEnd;
   proposal.description = p.description;
+  proposal.status = TreasuryProposalStatus.Pending;
   proposal.forVotes = ZERO_BD;
   proposal.againstVotes = ZERO_BD;
   proposal.abstainVotes = ZERO_BD;
@@ -156,4 +169,43 @@ function increaseProposalTotals(
     proposal.abstainVotes = proposal.abstainVotes.plus(weight);
   }
   proposal.totalVotes = proposal.totalVotes.plus(weight);
+}
+
+export function proposalCanceled(event: ProposalCanceled): void {
+  setProposalStatus(event.params.proposalId, TreasuryProposalStatus.Canceled);
+}
+
+export function proposalQueued(event: ProposalQueued): void {
+  const proposal = setProposalStatus(
+    event.params.proposalId,
+    TreasuryProposalStatus.Queued
+  );
+  if (proposal) {
+    proposal.eta = event.params.eta;
+    proposal.save();
+  }
+}
+
+export function proposalExecuted(event: ProposalExecuted): void {
+  setProposalStatus(event.params.proposalId, TreasuryProposalStatus.Executed);
+}
+
+export function setController(event: SetController): void {
+  recordSetController(event, event.params.controller);
+}
+
+function setProposalStatus(
+  proposalId: BigInt,
+  status: string
+): TreasuryProposal | null {
+  const proposal = TreasuryProposal.load(proposalId.toString());
+  if (!proposal) {
+    log.error("Treasury status update for unknown proposal {}", [
+      proposalId.toString(),
+    ]);
+    return null;
+  }
+  proposal.status = status;
+  proposal.save();
+  return proposal;
 }

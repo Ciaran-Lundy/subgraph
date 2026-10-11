@@ -18,6 +18,9 @@ import {
 } from "../../utils/helpers";
 import {
   DepositFundedEvent,
+  ParameterUpdateEvent,
+  UnlockCancelledEvent,
+  UnlockEvent,
   ReserveClaimedEvent,
   ReserveFundedEvent,
   WinningTicketRedeemedEvent,
@@ -26,12 +29,17 @@ import {
 } from "../types/schema";
 import {
   DepositFunded,
+  ParameterUpdate,
   ReserveClaimed,
   ReserveFunded,
+  SetController,
+  Unlock,
+  UnlockCancelled,
   WinningTicketRedeemed,
   WinningTicketTransfer,
   Withdrawal,
 } from "../types/TicketBroker/TicketBroker";
+import { recordSetController } from "./common";
 
 export function winningTicketRedeemed(event: WinningTicketRedeemed): void {
   let protocol = createOrLoadProtocol();
@@ -307,4 +315,75 @@ export function withdrawal(event: Withdrawal): void {
   withdrawalEvent.deposit = convertToDecimal(event.params.deposit);
   withdrawalEvent.reserve = convertToDecimal(event.params.reserve);
   withdrawalEvent.save();
+}
+
+export function unlock(event: Unlock): void {
+  let protocol = createOrLoadProtocol();
+  let round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
+  let broadcaster = createOrLoadBroadcaster(event.params.sender.toHex());
+  broadcaster.isUnlocked = true;
+  broadcaster.unlockStartRound = event.params.startRound;
+  broadcaster.unlockEndRound = event.params.endRound;
+  broadcaster.save();
+
+  createOrLoadTransactionFromEvent(event);
+
+  let unlockEvent = new UnlockEvent(
+    makeEventId(event.transaction.hash, event.logIndex)
+  );
+  unlockEvent.transaction = event.transaction.hash.toHex();
+  unlockEvent.timestamp = event.block.timestamp.toI32();
+  unlockEvent.round = round.id;
+  unlockEvent.sender = event.params.sender.toHex();
+  unlockEvent.startRound = event.params.startRound;
+  unlockEvent.endRound = event.params.endRound;
+  unlockEvent.save();
+}
+
+export function unlockCancelled(event: UnlockCancelled): void {
+  let protocol = createOrLoadProtocol();
+  let round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
+  let broadcaster = createOrLoadBroadcaster(event.params.sender.toHex());
+  broadcaster.isUnlocked = false;
+  broadcaster.save();
+
+  createOrLoadTransactionFromEvent(event);
+
+  let unlockCancelledEvent = new UnlockCancelledEvent(
+    makeEventId(event.transaction.hash, event.logIndex)
+  );
+  unlockCancelledEvent.transaction = event.transaction.hash.toHex();
+  unlockCancelledEvent.timestamp = event.block.timestamp.toI32();
+  unlockCancelledEvent.round = round.id;
+  unlockCancelledEvent.sender = event.params.sender.toHex();
+  unlockCancelledEvent.save();
+}
+
+export function parameterUpdate(event: ParameterUpdate): void {
+  let protocol = createOrLoadProtocol();
+  let round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
+
+  createOrLoadTransactionFromEvent(event);
+
+  let parameterUpdateEvent = new ParameterUpdateEvent(
+    makeEventId(event.transaction.hash, event.logIndex)
+  );
+  parameterUpdateEvent.transaction = event.transaction.hash.toHex();
+  parameterUpdateEvent.timestamp = event.block.timestamp.toI32();
+  parameterUpdateEvent.round = round.id;
+  parameterUpdateEvent.param = event.params.param;
+  parameterUpdateEvent.save();
+}
+
+export function setController(event: SetController): void {
+  recordSetController(event, event.params.controller);
 }

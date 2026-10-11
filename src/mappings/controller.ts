@@ -5,10 +5,15 @@ import {
   getBlockNum,
   makeEventId
 } from "../../utils/helpers";
-import { Pause, Unpause } from "../types/Controller/Controller";
+import {
+  Pause,
+  SetContractInfo,
+  Unpause,
+} from "../types/Controller/Controller";
 import {
   PauseEvent,
-  UnpauseEvent
+  SetContractInfoEvent,
+  UnpauseEvent,
 } from "../types/schema";
 
 export function pause(event: Pause): void {
@@ -49,4 +54,25 @@ export function unpause(event: Unpause): void {
   unpauseEvent.timestamp = event.block.timestamp.toI32();
   unpauseEvent.round = round.id;
   unpauseEvent.save();
+}
+
+export function setContractInfo(event: SetContractInfo): void {
+  let protocol = createOrLoadProtocol();
+  let round = createOrLoadRound(
+    protocol,
+    getBlockNum(protocol, event.block)
+  );
+
+  createOrLoadTransactionFromEvent(event);
+
+  let setContractInfoEvent = new SetContractInfoEvent(
+    makeEventId(event.transaction.hash, event.logIndex)
+  );
+  setContractInfoEvent.transaction = event.transaction.hash.toHex();
+  setContractInfoEvent.timestamp = event.block.timestamp.toI32();
+  setContractInfoEvent.round = round.id;
+  setContractInfoEvent.contractId = event.params.id;
+  setContractInfoEvent.contractAddress = event.params.contractAddress.toHex();
+  setContractInfoEvent.gitCommitHash = event.params.gitCommitHash;
+  setContractInfoEvent.save();
 }
