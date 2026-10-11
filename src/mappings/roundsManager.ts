@@ -10,7 +10,6 @@ import {
   createRound,
   EMPTY_ADDRESS,
   getBlockNum,
-  getBondingManagerAddress,
   getLptPriceEth,
   getTimestampForDaysPast,
   makeEventId,
@@ -20,6 +19,7 @@ import {
   ZERO_BD,
   ZERO_BI,
 } from "../../utils/helpers";
+import { BONDING_MANAGER_ADDRESS } from "../../utils/addresses";
 import { BondingManager } from "../types/BondingManager/BondingManager";
 // Import event types from the registrar contract ABIs
 import {
@@ -39,9 +39,8 @@ import {
 
 // Handler for NewRound events
 export function newRound(event: NewRound): void {
-  let bondingManagerAddress = getBondingManagerAddress();
   let bondingManager = BondingManager.bind(
-    Address.fromString(bondingManagerAddress)
+    Address.fromString(BONDING_MANAGER_ADDRESS)
   );
   let protocol = createOrLoadProtocol();
   let round = createOrLoadRound(

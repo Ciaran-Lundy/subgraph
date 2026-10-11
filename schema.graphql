@@ -1,7 +1,7 @@
 """
 Livepeer protocol global parameters
 """
-type Protocol @entity {
+type Protocol @entity(immutable: false) {
   "ID is set to 0"
   id: ID!
   "Per round inflation rate"
@@ -69,7 +69,7 @@ type Protocol @entity {
 """
 Perform transcoding work for the network. The transcoders with the most delegated stake are elected as active transcoders that process transcode jobs for the network.
 """
-type Transcoder @entity {
+type Transcoder @entity(immutable: false) {
   "Transcoder's ETH address"
   id: ID!
   "Round in which the transcoder became active - 0 if inactive"
@@ -122,7 +122,7 @@ type Transcoder @entity {
   delegatorCount: BigInt!
 }
 
-enum TranscoderStatus @entity {
+enum TranscoderStatus {
   NotRegistered
   Registered
 }
@@ -130,7 +130,7 @@ enum TranscoderStatus @entity {
 """
 Represents a transcoder's rewards and fees to be distributed to delegators
 """
-type Pool @entity {
+type Pool @entity(immutable: false) {
   "Unique identifer for the pool (formed using the transcoder's address and round number)"
   id: ID!
   "Round associated with the pool"
@@ -152,7 +152,7 @@ type Pool @entity {
 """
 The Livepeer protocol is round based and each round is represented by some number of Ethereum blocks.
 """
-type Round @entity {
+type Round @entity(immutable: false) {
   "Round number"
   id: ID!
   "The start date beginning at 12:00am UTC"
@@ -196,7 +196,7 @@ type Round @entity {
 """
 Bonded accounts who have delegated their stake towards a transcoder candidate
 """
-type Delegator @entity {
+type Delegator @entity(immutable: false) {
   "ETH address of a delegator"
   id: ID!
   "ETH address of the delegate (the one whom the delegator has bonded to)"
@@ -224,7 +224,7 @@ type Delegator @entity {
 """
 Abstraction for accounts/delegators bonded with the protocol
 """
-type LivepeerAccount @entity {
+type LivepeerAccount @entity(immutable: false) {
   "ETH address of the bonded delegator"
   id: ID!
   "The date the account was last associated with an event, beginning at 12:00am UTC"
@@ -238,7 +238,7 @@ type LivepeerAccount @entity {
 """
 Broadcasters pay transcoders to do the work of transcoding in exchange for fees
 """
-type Broadcaster @entity {
+type Broadcaster @entity(immutable: false) {
   "ETH address of a broadcaster"
   id: ID!
   "Amount of funds deposited"
@@ -276,7 +276,7 @@ type Broadcaster @entity {
 """
 Get an unbonding lock for a delegator
 """
-type UnbondingLock @entity {
+type UnbondingLock @entity(immutable: false) {
   "Unique unlock identifer"
   id: ID!
   "unbonding lock id"
@@ -296,7 +296,7 @@ type UnbondingLock @entity {
 """
 Stake weighted poll
 """
-type Poll @entity {
+type Poll @entity(immutable: false) {
   "Poll address"
   id: ID!
   "IPFS multihash for the proposal"
@@ -316,7 +316,7 @@ type Poll @entity {
 """
 Stake weighted tally associated with a poll
 """
-type PollTally @entity {
+type PollTally @entity(immutable: false) {
   "Poll address"
   id: ID!
   "Stake voted yes"
@@ -328,7 +328,7 @@ type PollTally @entity {
 """
 Vote data
 """
-type Vote @entity {
+type Vote @entity(immutable: false) {
   "Voter address + poll address"
   id: ID!
   "Vote caster"
@@ -345,7 +345,7 @@ type Vote @entity {
   registeredTranscoder: Boolean
 }
 
-enum PollChoice @entity {
+enum PollChoice {
   Yes
   No
 }
@@ -353,7 +353,7 @@ enum PollChoice @entity {
 """
 Protocol data accumulated and condensed into day stats
 """
-type Day @entity {
+type Day @entity(immutable: false) {
   "Timestamp rounded to current day by dividing by 86400"
   id: ID!
   "The date beginning at 12:00am UTC"
@@ -381,7 +381,7 @@ type Day @entity {
 """
 Transcoder data accumulated and condensed into day stats
 """
-type TranscoderDay @entity {
+type TranscoderDay @entity(immutable: false) {
   "Concatenation of the transcoder address and the day timestamp (e.g. <ADDRESS>-<TIMESTAMP>)"
   id: ID!
   "The date beginning at 12:00am UTC"
@@ -397,7 +397,7 @@ type TranscoderDay @entity {
 """
 Broadcaster data accumulated and condensed into day stats
 """
-type BroadcasterDay @entity {
+type BroadcasterDay @entity(immutable: false) {
   "Concatenation of the broadcaster address and the day timestamp (e.g. <ADDRESS>-<TIMESTAMP>)"
   id: ID!
   "The date beginning at 12:00am UTC"
@@ -413,7 +413,7 @@ type BroadcasterDay @entity {
 """
 Stake weighted treasury proposal
 """
-type TreasuryProposal @entity {
+type TreasuryProposal @entity(immutable: false) {
   "Governor proposal ID formatted as a decimal number"
   id: ID!
   "Account that created the proposal"
@@ -454,7 +454,7 @@ enum TreasuryProposalStatus {
   Executed
 }
 
-enum TreasuryVoteSupport{
+enum TreasuryVoteSupport {
   Against
   For
   Abstain
@@ -463,7 +463,7 @@ enum TreasuryVoteSupport{
 """
 Stake weighted vote on a treasury proposal
 """
-type TreasuryVote @entity {
+type TreasuryVote @entity(immutable: false) {
   "Proposal ID + voter address"
   id: ID!
   "The proposal that was voted on"
@@ -493,14 +493,14 @@ interface Event {
 """
 Transaction entities are created for each Ethereum transaction that contains an interaction within Livepeer contracts.
 """
-type Transaction @entity {
+type Transaction @entity(immutable: true) {
   "Ethereum transaction hash"
   id: ID!
   "Block transaction was mined in"
   blockNumber: BigInt!
   "Timestamp for transaction"
   timestamp: Int!
-  "Actually is the limit of gas in the transaction, pending update in downstream projects"
+  "Gas used by the transaction, from its receipt"
   gasUsed: BigInt!
   "Cost per unit of gas specified for the transaction"
   gasPrice: BigInt!
@@ -515,7 +515,7 @@ type Transaction @entity {
 """
 BondEvent entities are created for every emitted Bond event.
 """
-type BondEvent implements Event @entity {
+type BondEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -539,7 +539,7 @@ type BondEvent implements Event @entity {
 """
 UnbondEvent entities are created for every emitted Unbond event.
 """
-type UnbondEvent implements Event @entity {
+type UnbondEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -563,7 +563,7 @@ type UnbondEvent implements Event @entity {
 """
 RebondEvent entities are created for every emitted Rebond event.
 """
-type RebondEvent implements Event @entity {
+type RebondEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -582,7 +582,7 @@ type RebondEvent implements Event @entity {
 """
 TransferBond entities are created for every emitted TransferBond event.
 """
-type TransferBondEvent implements Event @entity {
+type TransferBondEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -601,7 +601,7 @@ type TransferBondEvent implements Event @entity {
 """
 RewardEvent entities are created for every emitted Reward event.
 """
-type RewardEvent implements Event @entity {
+type RewardEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -619,7 +619,7 @@ type RewardEvent implements Event @entity {
 """
 RewardCallerSetEvent entities are created for every emitted RewardCallerSet event.
 """
-type RewardCallerSetEvent implements Event @entity {
+type RewardCallerSetEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -637,7 +637,7 @@ type RewardCallerSetEvent implements Event @entity {
 """
 TranscoderActivatedEvent entities are created for every emitted TranscoderActivated event.
 """
-type TranscoderActivatedEvent implements Event @entity {
+type TranscoderActivatedEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -655,7 +655,7 @@ type TranscoderActivatedEvent implements Event @entity {
 """
 TranscoderDeactivatedEvent entities are created for every emitted TranscoderDeactivated event.
 """
-type TranscoderDeactivatedEvent implements Event @entity {
+type TranscoderDeactivatedEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -673,7 +673,7 @@ type TranscoderDeactivatedEvent implements Event @entity {
 """
 EarningsClaimedEvent entities are created for every emitted EarningsClaimed event.
 """
-type EarningsClaimedEvent implements Event @entity {
+type EarningsClaimedEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -699,7 +699,7 @@ type EarningsClaimedEvent implements Event @entity {
 """
 TranscoderUpdateEvent entities are created for every emitted TranscoderUpdate event.
 """
-type TranscoderUpdateEvent implements Event @entity {
+type TranscoderUpdateEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -719,7 +719,7 @@ type TranscoderUpdateEvent implements Event @entity {
 """
 TranscoderSlashedEvent entities are created for every emitted TranscoderSlashed event.
 """
-type TranscoderSlashedEvent implements Event @entity {
+type TranscoderSlashedEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -741,7 +741,7 @@ type TranscoderSlashedEvent implements Event @entity {
 """
 TranscoderResignedEvent entities are created for every emitted TranscoderResigned event.
 """
-type TranscoderResignedEvent implements Event @entity {
+type TranscoderResignedEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -757,7 +757,7 @@ type TranscoderResignedEvent implements Event @entity {
 """
 TranscoderEvictedEvent entities are created for every emitted TranscoderEvicted event.
 """
-type TranscoderEvictedEvent implements Event @entity {
+type TranscoderEvictedEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -773,7 +773,7 @@ type TranscoderEvictedEvent implements Event @entity {
 """
 WithdrawStakeEvent entities are created for every emitted WithdrawStake event.
 """
-type WithdrawStakeEvent implements Event @entity {
+type WithdrawStakeEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -793,7 +793,7 @@ type WithdrawStakeEvent implements Event @entity {
 """
 WithdrawFeesEvent entities are created for every emitted WithdrawFees event.
 """
-type WithdrawFeesEvent implements Event @entity {
+type WithdrawFeesEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -813,7 +813,7 @@ type WithdrawFeesEvent implements Event @entity {
 """
 NewRoundEvent entities are created for every emitted NewRound event.
 """
-type NewRoundEvent implements Event @entity {
+type NewRoundEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -829,7 +829,7 @@ type NewRoundEvent implements Event @entity {
 """
 WinningTicketRedeemedEvent entities are created for every emitted WinningTicketRedeemed event.
 """
-type WinningTicketRedeemedEvent implements Event @entity {
+type WinningTicketRedeemedEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -859,7 +859,7 @@ type WinningTicketRedeemedEvent implements Event @entity {
 """
 WinningTicketTransferEvent entities are created for every emitted WinningTicketTransfer event.
 """
-type WinningTicketTransferEvent implements Event @entity {
+type WinningTicketTransferEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -879,7 +879,7 @@ type WinningTicketTransferEvent implements Event @entity {
 """
 DepositFundedEvent entities are created for every emitted DepositFunded event.
 """
-type DepositFundedEvent implements Event @entity {
+type DepositFundedEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -897,7 +897,7 @@ type DepositFundedEvent implements Event @entity {
 """
 ReserveFundedEvent entities are created for every emitted ReserveFunded event.
 """
-type ReserveFundedEvent implements Event @entity {
+type ReserveFundedEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -915,7 +915,7 @@ type ReserveFundedEvent implements Event @entity {
 """
 ReserveClaimedEvent entities are created for every emitted ReserveClaimed event.
 """
-type ReserveClaimedEvent implements Event @entity {
+type ReserveClaimedEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -935,7 +935,7 @@ type ReserveClaimedEvent implements Event @entity {
 """
 WithdrawalEvent entities are created for every emitted Withdrawal event.
 """
-type WithdrawalEvent implements Event @entity {
+type WithdrawalEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -955,7 +955,7 @@ type WithdrawalEvent implements Event @entity {
 """
 SetCurrentRewardTokensEvent entities are created for every emitted SetCurrentRewardTokens event.
 """
-type SetCurrentRewardTokensEvent implements Event @entity {
+type SetCurrentRewardTokensEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -973,7 +973,7 @@ type SetCurrentRewardTokensEvent implements Event @entity {
 """
 PauseEvent entities are created for every emitted Pause event.
 """
-type PauseEvent implements Event @entity {
+type PauseEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -987,7 +987,7 @@ type PauseEvent implements Event @entity {
 """
 UnpauseEvent entities are created for every emitted Unpause event.
 """
-type UnpauseEvent implements Event @entity {
+type UnpauseEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1001,7 +1001,7 @@ type UnpauseEvent implements Event @entity {
 """
 ParameterUpdateEvent entities are created for every emitted ParameterUpdate event.
 """
-type ParameterUpdateEvent implements Event @entity {
+type ParameterUpdateEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1017,7 +1017,7 @@ type ParameterUpdateEvent implements Event @entity {
 """
 TreasuryVoteEvent entities are created for every emitted VoteCast/VoteCastWithParams event.
 """
-type TreasuryVoteEvent implements Event @entity {
+type TreasuryVoteEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1041,7 +1041,7 @@ type TreasuryVoteEvent implements Event @entity {
 """
 VoteEvent entities are created for every emitted Vote event.
 """
-type VoteEvent implements Event @entity {
+type VoteEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1061,7 +1061,7 @@ type VoteEvent implements Event @entity {
 """
 PollCreatedEvent entities are created for every emitted PollCreated event.
 """
-type PollCreatedEvent implements Event @entity {
+type PollCreatedEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1085,7 +1085,7 @@ type PollCreatedEvent implements Event @entity {
 """
 ServiceURIUpdateEvent entities are created for every emitted ServiceURIUpdate event.
 """
-type ServiceURIUpdateEvent implements Event @entity {
+type ServiceURIUpdateEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1103,7 +1103,7 @@ type ServiceURIUpdateEvent implements Event @entity {
 """
 MintEvent entities are created for every emitted Mint event.
 """
-type MintEvent implements Event @entity {
+type MintEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1121,7 +1121,7 @@ type MintEvent implements Event @entity {
 """
 BurnEvent entities are created for every emitted Burn event.
 """
-type BurnEvent implements Event @entity {
+type BurnEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1137,7 +1137,7 @@ type BurnEvent implements Event @entity {
 """
 MigrateDelegatorFinalizedEvent entities are created for every emitted WithdrawStake event.
 """
-type MigrateDelegatorFinalizedEvent implements Event @entity {
+type MigrateDelegatorFinalizedEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1157,7 +1157,7 @@ type MigrateDelegatorFinalizedEvent implements Event @entity {
 """
 StakeClaimedEvent entities are created for every emitted StakeClaimed event.
 """
-type StakeClaimedEvent implements Event @entity {
+type StakeClaimedEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1175,7 +1175,7 @@ type StakeClaimedEvent implements Event @entity {
 """
 TreasuryRewardEvent entities are created for every emitted TreasuryReward event.
 """
-type TreasuryRewardEvent implements Event @entity {
+type TreasuryRewardEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1195,7 +1195,7 @@ type TreasuryRewardEvent implements Event @entity {
 """
 SetContractInfoEvent entities are created for every emitted Controller SetContractInfo event.
 """
-type SetContractInfoEvent implements Event @entity {
+type SetContractInfoEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1215,7 +1215,7 @@ type SetContractInfoEvent implements Event @entity {
 """
 SetControllerEvent entities are created for every emitted SetController event on a managed contract.
 """
-type SetControllerEvent implements Event @entity {
+type SetControllerEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1233,7 +1233,7 @@ type SetControllerEvent implements Event @entity {
 """
 UnlockEvent entities are created for every emitted TicketBroker Unlock event.
 """
-type UnlockEvent implements Event @entity {
+type UnlockEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1253,7 +1253,7 @@ type UnlockEvent implements Event @entity {
 """
 UnlockCancelledEvent entities are created for every emitted TicketBroker UnlockCancelled event.
 """
-type UnlockCancelledEvent implements Event @entity {
+type UnlockCancelledEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1269,7 +1269,7 @@ type UnlockCancelledEvent implements Event @entity {
 """
 DelegatorPoolCreatedEvent entities are created for every emitted L2Migrator DelegatorPoolCreated event.
 """
-type DelegatorPoolCreatedEvent implements Event @entity {
+type DelegatorPoolCreatedEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1285,7 +1285,7 @@ type DelegatorPoolCreatedEvent implements Event @entity {
 """
 MigrateSenderFinalizedEvent entities are created for every emitted L2Migrator MigrateSenderFinalized event.
 """
-type MigrateSenderFinalizedEvent implements Event @entity {
+type MigrateSenderFinalizedEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1303,7 +1303,7 @@ type MigrateSenderFinalizedEvent implements Event @entity {
 """
 MigrateUnbondingLocksFinalizedEvent entities are created for every emitted L2Migrator MigrateUnbondingLocksFinalized event.
 """
-type MigrateUnbondingLocksFinalizedEvent implements Event @entity {
+type MigrateUnbondingLocksFinalizedEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1322,7 +1322,7 @@ type MigrateUnbondingLocksFinalizedEvent implements Event @entity {
 """
 DelegatorBondedAmountChangedEvent entities are created for every emitted BondingVotes DelegatorBondedAmountChanged event.
 """
-type DelegatorBondedAmountChangedEvent implements Event @entity {
+type DelegatorBondedAmountChangedEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1342,7 +1342,7 @@ type DelegatorBondedAmountChangedEvent implements Event @entity {
 """
 DelegateChangedEvent entities are created for every emitted BondingVotes DelegateChanged event.
 """
-type DelegateChangedEvent implements Event @entity {
+type DelegateChangedEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1359,7 +1359,7 @@ type DelegateChangedEvent implements Event @entity {
 """
 DelegateVotesChangedEvent entities are created for every emitted BondingVotes DelegateVotesChanged event.
 """
-type DelegateVotesChangedEvent implements Event @entity {
+type DelegateVotesChangedEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1376,7 +1376,7 @@ type DelegateVotesChangedEvent implements Event @entity {
 """
 TreasuryCallScheduledEvent entities are created for every emitted Treasury (timelock) CallScheduled event.
 """
-type TreasuryCallScheduledEvent implements Event @entity {
+type TreasuryCallScheduledEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1399,7 +1399,7 @@ type TreasuryCallScheduledEvent implements Event @entity {
 """
 TreasuryCallExecutedEvent entities are created for every emitted Treasury (timelock) CallExecuted event.
 """
-type TreasuryCallExecutedEvent implements Event @entity {
+type TreasuryCallExecutedEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1420,7 +1420,7 @@ type TreasuryCallExecutedEvent implements Event @entity {
 """
 TreasuryOperationCancelledEvent entities are created for every emitted Treasury (timelock) Cancelled event.
 """
-type TreasuryOperationCancelledEvent implements Event @entity {
+type TreasuryOperationCancelledEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"
@@ -1436,7 +1436,7 @@ type TreasuryOperationCancelledEvent implements Event @entity {
 """
 TreasuryMinDelayChangeEvent entities are created for every emitted Treasury (timelock) MinDelayChange event.
 """
-type TreasuryMinDelayChangeEvent implements Event @entity {
+type TreasuryMinDelayChangeEvent implements Event @entity(immutable: true) {
   "Ethereum transaction hash + event log index"
   id: ID!
   "Reference to the transaction the event was included in"

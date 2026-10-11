@@ -1,4 +1,4 @@
-import { Address, dataSource, log } from "@graphprotocol/graph-ts";
+import { Address, log } from "@graphprotocol/graph-ts";
 import {
   convertToDecimal,
   createOrLoadDay,
@@ -6,10 +6,10 @@ import {
   createOrLoadRound,
   createOrLoadTransactionFromEvent,
   getBlockNum,
-  getMinterAddress,
   makeEventId,
   ZERO_BD,
 } from "../../utils/helpers";
+import { MINTER_ADDRESS } from "../../utils/addresses";
 import { Burn, Mint } from "../types/LivepeerToken/LivepeerToken";
 import { Minter } from "../types/Minter/Minter";
 import { BurnEvent, MintEvent } from "../types/schema";
@@ -18,8 +18,7 @@ export function mint(event: Mint): void {
   let protocol = createOrLoadProtocol();
   let day = createOrLoadDay(event.block.timestamp.toI32());
   let amount = convertToDecimal(event.params.amount);
-  let minterAddress = getMinterAddress();
-  let minter = Minter.bind(Address.fromString(minterAddress));
+  let minter = Minter.bind(Address.fromString(MINTER_ADDRESS));
   let callResult = minter.try_getGlobalTotalSupply();
   let totalSupply = ZERO_BD;
 
@@ -79,8 +78,7 @@ export function burn(event: Burn): void {
   );
   let day = createOrLoadDay(event.block.timestamp.toI32());
   let value = convertToDecimal(event.params.value);
-  let minterAddress = getMinterAddress();
-  let minter = Minter.bind(Address.fromString(minterAddress));
+  let minter = Minter.bind(Address.fromString(MINTER_ADDRESS));
 
   let callResult = minter.try_getGlobalTotalSupply();
   let totalSupply = ZERO_BD;

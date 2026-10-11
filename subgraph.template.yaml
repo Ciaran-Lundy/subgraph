@@ -1,8 +1,23 @@
-specVersion: 0.0.2
+specVersion: 1.3.0
 description: A protocol for affordable and reliable video encoding. Find transcoders, delegators, earning pools, and staking rounds.
 repository: https://github.com/livepeer/subgraph
 schema:
   file: ./schema.graphql
+{{#if graft}}
+# Hotfix deployments: set graft.base (deployment ID) and graft.block in
+# networks.yaml to continue from an existing deployment instead of
+# re-indexing from genesis. Remove it again for the next full deployment.
+features:
+  - grafting
+graft:
+  base: {{graft.base}}
+  block: {{graft.block}}
+{{/if}}
+# Pruning (indexerHints.prune) is intentionally not enabled: the Explorer's
+# protocolByBlock query reads historical state with a block argument. Confirm
+# the time-travel range consumers need before adding, for example:
+# indexerHints:
+#   prune: <history_blocks>
 dataSources:
   - kind: ethereum/contract
     name: BondingManager
@@ -13,7 +28,7 @@ dataSources:
       abi: BondingManager
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/bondingManager.ts
       abis:
@@ -48,36 +63,93 @@ dataSources:
       eventHandlers:
         - event: TranscoderUpdate(indexed address,uint256,uint256)
           handler: transcoderUpdate
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: TranscoderActivated(indexed address,uint256)
           handler: transcoderActivated
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: TranscoderDeactivated(indexed address,uint256)
           handler: transcoderDeactivated
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: EarningsClaimed(indexed address,indexed address,uint256,uint256,uint256,uint256)
           handler: earningsClaimed
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: Bond(indexed address,indexed address,indexed address,uint256,uint256)
           handler: bond
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
+            newDelegateDelegator: BondingManager[event.address].getDelegator(event.params.newDelegate)
+            delegatorDelegator: BondingManager[event.address].getDelegator(event.params.delegator)
         - event: Unbond(indexed address,indexed address,uint256,uint256,uint256)
           handler: unbond
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
+            delegateDelegator: BondingManager[event.address].getDelegator(event.params.delegate)
+            delegatorDelegator: BondingManager[event.address].getDelegator(event.params.delegator)
         - event: Rebond(indexed address,indexed address,uint256,uint256)
           handler: rebond
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
+            delegateDelegator: BondingManager[event.address].getDelegator(event.params.delegate)
+            delegatorDelegator: BondingManager[event.address].getDelegator(event.params.delegator)
         - event: WithdrawStake(indexed address,uint256,uint256,uint256)
           handler: withdrawStake
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: Reward(indexed address,uint256)
           handler: reward
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: RewardCallerSet(indexed address,indexed address)
           handler: rewardCallerSet
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: WithdrawFees(indexed address,address,uint256)
           handler: withdrawFees
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
+            delegatorDelegator: BondingManager[event.address].getDelegator(event.params.delegator)
         - event: ParameterUpdate(string)
           handler: parameterUpdate
+          receipt: true
+          calls:
+            unbondingPeriod: BondingManager[event.address].unbondingPeriod()
+            poolMaxSize: BondingManager[event.address].getTranscoderPoolMaxSize()
         - event: TransferBond(indexed address,indexed address,uint256,uint256,uint256)
           handler: transferBond
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: TranscoderSlashed(indexed address,address,uint256,uint256)
           handler: transcoderSlashed
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
+            transcoderDelegator: BondingManager[event.address].getDelegator(event.params.transcoder)
         - event: TreasuryReward(indexed address,address,uint256)
           handler: treasuryReward
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: SetController(address)
           handler: setController
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
   - kind: ethereum/contract
     name: L2Migrator
     network: {{networkName}}
@@ -87,7 +159,7 @@ dataSources:
       abi: L2Migrator
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/l2Migrator.ts
       abis:
@@ -105,14 +177,29 @@ dataSources:
       eventHandlers:
         - event: MigrateDelegatorFinalized((address,address,uint256,uint256,uint256,address))
           handler: migrateDelegatorFinalized
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: MigrateSenderFinalized((address,address,uint256,uint256))
           handler: migrateSenderFinalized
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: MigrateUnbondingLocksFinalized((address,address,uint256,uint256[],address))
           handler: migrateUnbondingLocksFinalized
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: DelegatorPoolCreated(indexed address,address)
           handler: delegatorPoolCreated
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: StakeClaimed(indexed address,address,uint256,uint256)
           handler: stakeClaimed
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
   - kind: ethereum/contract
     name: RoundsManager
     network: {{networkName}}
@@ -122,7 +209,7 @@ dataSources:
       abi: RoundsManager
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/roundsManager.ts
       abis:
@@ -146,18 +233,36 @@ dataSources:
       eventHandlers:
         - event: NewRound(indexed uint256,bytes32)
           handler: newRound
+          receipt: true
+          calls:
+            blockNum: RoundsManager[event.address].blockNum()
+            firstTranscoder: BondingManager[0x{{contracts.bondingManager.address}}].getFirstTranscoderInPool()
+            totalBonded: BondingManager[0x{{contracts.bondingManager.address}}].getTotalBonded()
+{{#if uniswapV3Pools.lptEth}}
+            lptEthSlot0: UniswapV3Pool[0x{{uniswapV3Pools.lptEth}}].slot0()
+{{/if}}
         - event: ParameterUpdate(string)
           handler: parameterUpdate
+          receipt: true
+          calls:
+            currentRound: RoundsManager[event.address].currentRound()
+            roundLength: RoundsManager[event.address].roundLength()
+            lastRoundLengthUpdateStartBlock: RoundsManager[event.address].lastRoundLengthUpdateStartBlock()
+            lastRoundLengthUpdateRound: RoundsManager[event.address].lastRoundLengthUpdateRound()
+            roundLockAmount: RoundsManager[event.address].roundLockAmount()
   - kind: ethereum/contract
     name: MinterV1
     network: {{networkName}}
     source:
       startBlock: {{contracts.minterV1.startBlock}}
       address: {{contracts.minterV1.address}}
+{{#if contracts.minterV1.endBlock}}
+      endBlock: {{contracts.minterV1.endBlock}}
+{{/if}}
       abi: Minter
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/minter.ts
       abis:
@@ -175,10 +280,24 @@ dataSources:
       eventHandlers:
         - event: SetCurrentRewardTokens(uint256,uint256)
           handler: setCurrentRewardTokens
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
+            targetBondingRate: Minter[event.address].targetBondingRate()
+            inflationChange: Minter[event.address].inflationChange()
+            inflation: Minter[event.address].inflation()
         - event: ParameterUpdate(string)
           handler: parameterUpdate
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
+            targetBondingRate: Minter[event.address].targetBondingRate()
+            inflationChange: Minter[event.address].inflationChange()
         - event: SetController(address)
           handler: setController
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
   - kind: ethereum/contract
     name: Minter
     network: {{networkName}}
@@ -188,7 +307,7 @@ dataSources:
       abi: Minter
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/minter.ts
       abis:
@@ -206,10 +325,24 @@ dataSources:
       eventHandlers:
         - event: SetCurrentRewardTokens(uint256,uint256)
           handler: setCurrentRewardTokens
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
+            targetBondingRate: Minter[event.address].targetBondingRate()
+            inflationChange: Minter[event.address].inflationChange()
+            inflation: Minter[event.address].inflation()
         - event: ParameterUpdate(string)
           handler: parameterUpdate
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
+            targetBondingRate: Minter[event.address].targetBondingRate()
+            inflationChange: Minter[event.address].inflationChange()
         - event: SetController(address)
           handler: setController
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
   - kind: ethereum/contract
     name: TicketBroker
     network: {{networkName}}
@@ -219,7 +352,7 @@ dataSources:
       abi: TicketBroker
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/ticketBroker.ts
       abis:
@@ -249,24 +382,57 @@ dataSources:
       eventHandlers:
         - event: WinningTicketRedeemed(indexed address,indexed address,uint256,uint256,uint256,uint256,bytes)
           handler: winningTicketRedeemed
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
+{{#if uniswapV3Pools.daiEth}}
+            daiEthSlot0: UniswapV3Pool[0x{{uniswapV3Pools.daiEth}}].slot0()
+{{/if}}
         - event: WinningTicketTransfer(indexed address,indexed address,uint256)
           handler: winningTicketTransfer
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: DepositFunded(indexed address,uint256)
           handler: depositFunded
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: ReserveFunded(indexed address,uint256)
           handler: reserveFunded
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: ReserveClaimed(indexed address,address,uint256)
           handler: reserveClaimed
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: Withdrawal(indexed address,uint256,uint256)
           handler: withdrawal
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: Unlock(indexed address,uint256,uint256)
           handler: unlock
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: UnlockCancelled(indexed address)
           handler: unlockCancelled
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: ParameterUpdate(string)
           handler: parameterUpdate
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: SetController(address)
           handler: setController
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
   - kind: ethereum/contract
     name: Controller
     network: {{networkName}}
@@ -276,7 +442,7 @@ dataSources:
       abi: Controller
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/controller.ts
       abis:
@@ -294,10 +460,19 @@ dataSources:
       eventHandlers:
         - event: Pause()
           handler: pause
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: Unpause()
           handler: unpause
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: SetContractInfo(bytes32,address,bytes20)
           handler: setContractInfo
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
   - kind: ethereum/contract
     name: PollCreator
     network: {{networkName}}
@@ -307,7 +482,7 @@ dataSources:
       abi: PollCreator
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/pollCreator.ts
       abis:
@@ -323,6 +498,9 @@ dataSources:
       eventHandlers:
         - event: PollCreated(indexed address,bytes,uint256,uint256,uint256)
           handler: pollCreated
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
   - kind: ethereum/contract
     name: Treasury
     network: {{networkName}}
@@ -332,7 +510,7 @@ dataSources:
       abi: LivepeerGovernor
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/treasury.ts
       abis:
@@ -352,18 +530,31 @@ dataSources:
       eventHandlers:
         - event: ProposalCreated(uint256,address,address[],uint256[],string[],bytes[],uint256,uint256,string)
           handler: proposalCreated
+          receipt: true
         - event: VoteCast(indexed address,uint256,uint8,uint256,string)
           handler: voteCast
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: VoteCastWithParams(indexed address,uint256,uint8,uint256,string,bytes)
           handler: voteCastWithParams
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: ProposalCanceled(uint256)
           handler: proposalCanceled
+          receipt: true
         - event: ProposalQueued(uint256,uint256)
           handler: proposalQueued
+          receipt: true
         - event: ProposalExecuted(uint256)
           handler: proposalExecuted
+          receipt: true
         - event: SetController(address)
           handler: setController
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
   - kind: ethereum/contract
     name: ServiceRegistry
     network: {{networkName}}
@@ -373,7 +564,7 @@ dataSources:
       abi: ServiceRegistry
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/serviceRegistry.ts
       abis:
@@ -389,6 +580,9 @@ dataSources:
       eventHandlers:
         - event: ServiceURIUpdate(indexed address,string)
           handler: serviceURIUpdate
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
   - kind: ethereum/contract
     name: LivepeerToken
     network: {{networkName}}
@@ -398,7 +592,7 @@ dataSources:
       abi: LivepeerToken
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/livepeerToken.ts
       abis:
@@ -418,8 +612,14 @@ dataSources:
       eventHandlers:
         - event: Mint(indexed address,uint256)
           handler: mint
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: Burn(indexed address,uint256)
           handler: burn
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
 {{#if contracts.bondingVotes}}
   - kind: ethereum/contract
     name: BondingVotes
@@ -430,7 +630,7 @@ dataSources:
       abi: BondingVotes
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/bondingVotes.ts
       abis:
@@ -448,10 +648,19 @@ dataSources:
       eventHandlers:
         - event: DelegatorBondedAmountChanged(indexed address,uint256,uint256,uint256,uint256)
           handler: delegatorBondedAmountChanged
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: DelegateChanged(indexed address,indexed address,indexed address)
           handler: delegateChanged
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: DelegateVotesChanged(indexed address,uint256,uint256)
           handler: delegateVotesChanged
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
 {{/if}}
 {{#if contracts.treasury}}
   - kind: ethereum/contract
@@ -463,7 +672,7 @@ dataSources:
       abi: Treasury
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/treasuryTimelock.ts
       abis:
@@ -482,12 +691,24 @@ dataSources:
       eventHandlers:
         - event: CallScheduled(indexed bytes32,indexed uint256,address,uint256,bytes,bytes32,uint256)
           handler: callScheduled
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: CallExecuted(indexed bytes32,indexed uint256,address,uint256,bytes)
           handler: callExecuted
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: Cancelled(indexed bytes32)
           handler: cancelled
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: MinDelayChange(uint256,uint256)
           handler: minDelayChange
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
 {{/if}}
 ###############################################################################
 #
@@ -503,7 +724,7 @@ templates:
       abi: BondingManager
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/pollTallyHandlers.ts
       abis:
@@ -521,12 +742,24 @@ templates:
       eventHandlers:
         - event: Reward(indexed address,uint256)
           handler: updatePollTallyOnReward
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: Bond(indexed address,indexed address,indexed address,uint256,uint256)
           handler: updatePollTallyOnBond
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: Unbond(indexed address,indexed address,uint256,uint256,uint256)
           handler: updatePollTallyOnUnbond
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
         - event: Rebond(indexed address,indexed address,uint256,uint256)
           handler: updatePollTallyOnRebond
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()
   - kind: ethereum/contract
     name: Poll
     network: {{networkName}}
@@ -534,7 +767,7 @@ templates:
       abi: Poll
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/poll.ts
       abis:
@@ -556,3 +789,6 @@ templates:
       eventHandlers:
         - event: Vote(indexed address,uint256)
           handler: vote
+          receipt: true
+          calls:
+            blockNum: RoundsManager[0x{{contracts.roundsManager.address}}].blockNum()

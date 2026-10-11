@@ -15,6 +15,9 @@ arbitrum-one:
     minterV1:
       address: "4969dcCF5186e1c49411638fc8A2a020Fdab752E"
       startBlock: 5856338
+      # endBlock: block of the Controller SetContractInfo that registered the
+      # current Minter (see SetContractInfoEvent). The Minter's deployment
+      # block (6253359) is not enough: MinterV1 stays live until that switch.
     minter:
       address: "c20DE37170B45774e6CD3d2304017fc962f27252"
       startBlock: 6253359
@@ -39,6 +42,9 @@ arbitrum-one:
     treasury:
       address: "f82C1FF415F1fCf582554fDba790E27019c8E8C4"
       startBlock: 139793473
+  uniswapV3Pools:
+    daiEth: "a961f0473da4864c5ed28e00fcc53a3aab056c1b"
+    lptEth: "4fd47e5102dfbf95541f64ed6fe13d4ed26d2546"
   networkName: arbitrum-one
 arbitrum-goerli:
   contracts:
@@ -75,6 +81,9 @@ arbitrum-goerli:
     l2Migrator:
       address: "deadbeef0deadbeef1deadbeef3deadbeef4dead"
       startBlock: 33404404
+  uniswapV3Pools:
+    daiEth: "01ab0834e140f1d33c99b6380a77a6b75b283b3f"
+    lptEth: "01ab0834e140f1d33c99b6380a77a6b75b283b3f"
   networkName: arbitrum-goerli
 development:
   contracts:

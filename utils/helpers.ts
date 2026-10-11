@@ -3,7 +3,6 @@ import {
   BigDecimal,
   BigInt,
   Bytes,
-  dataSource,
   ethereum,
   log,
 } from "@graphprotocol/graph-ts";
@@ -23,6 +22,11 @@ import {
   Vote,
 } from "../src/types/schema";
 import { UniswapV3Pool } from "../src/types/TicketBroker/UniswapV3Pool";
+import {
+  ROUNDS_MANAGER_ADDRESS,
+  UNISWAP_V3_DAI_ETH_POOL_ADDRESS,
+  UNISWAP_V3_LPT_ETH_POOL_ADDRESS,
+} from "./addresses";
 
 let x = BigInt.fromI32(2);
 let y = 255 as u8;
@@ -145,7 +149,10 @@ export function createOrLoadTransactionFromEvent<T extends ethereum.Event>(
     tx = new Transaction(event.transaction.hash.toHex());
 
     tx.blockNumber = event.block.number;
-    tx.gasUsed = event.transaction.gasLimit;
+    // Every handler declares `receipt: true`; fall back to the gas limit
+    // (the previous behaviour) only if a receipt is unavailable
+    let receipt = event.receipt;
+    tx.gasUsed = receipt ? receipt.gasUsed : event.transaction.gasLimit;
     tx.gasPrice = event.transaction.gasPrice;
     tx.timestamp = event.block.timestamp.toI32();
     tx.from = event.transaction.from.toHex();
@@ -172,7 +179,7 @@ export function createOrLoadProtocol(): Protocol {
     protocol.lastRoundLengthUpdateStartBlock = ZERO_BI;
     protocol.lockPeriod = ZERO_BI;
     let roundsManager = RoundsManager.bind(
-      Address.fromString(getRoundsManagerAddress())
+      Address.fromString(ROUNDS_MANAGER_ADDRESS)
     );
     protocol.roundLength = roundsManager.roundLength();
     protocol.roundLockAmount = ZERO_BI;
@@ -518,7 +525,7 @@ export function getEthPriceUsd(
   // ethPriceCachedAtBlock is only moved when a price is accepted, so a run of
   // rejected reads cannot keep the cached price "recent" indefinitely.
   let cached = protocol.ethPriceUsd;
-  let price = getPriceForPair(getUniswapV3DaiEthPoolAddress());
+  let price = getPriceForPair(UNISWAP_V3_DAI_ETH_POOL_ADDRESS);
   if (price === null) {
     return cached;
   }
@@ -547,16 +554,13 @@ export function getEthPriceUsd(
 
 // LPT price in ETH, or null if it could not be read.
 export function getLptPriceEth(): BigDecimal | null {
-  return getPriceForPair(getUniswapV3LptEthPoolAddress());
+  return getPriceForPair(UNISWAP_V3_LPT_ETH_POOL_ADDRESS);
 }
 
 // Price of token1 in token0 from a Uniswap V3 pool, or null when the network
-// has no pool or the slot0 call reverts.
+// has no pool (empty address) or the slot0 call reverts.
 export function getPriceForPair(address: string): BigDecimal | null {
-  if (
-    dataSource.network() != "arbitrum-one" &&
-    dataSource.network() != "arbitrum-goerli"
-  ) {
+  if (address == "") {
     return null;
   }
 
@@ -596,65 +600,6 @@ export function integerFromString(s: string): BigInt {
   return BigInt.fromString(s);
 }
 
-export function getUniswapV3LptEthPoolAddress(): string {
-  const network = dataSource.network();
-
-  if (network == "arbitrum-one") {
-    return "4fd47e5102dfbf95541f64ed6fe13d4ed26d2546";
-  } else if (network == "arbitrum-goerli") {
-    return "01ab0834e140f1d33c99b6380a77a6b75b283b3f";
-  } else {
-    return "0xffa7ee1c08416565d054b2cf3e336dcfe21591e5";
-  }
-}
-
-export function getUniswapV3DaiEthPoolAddress(): string {
-  const network = dataSource.network();
-
-  if (network == "arbitrum-one") {
-    return "a961f0473da4864c5ed28e00fcc53a3aab056c1b";
-  } else if (network == "arbitrum-goerli") {
-    return "01ab0834e140f1d33c99b6380a77a6b75b283b3f";
-  } else {
-    return "0xffa7ee1c08416565d054b2cf3e336dcfe21591e5";
-  }
-}
-
-export function getBondingManagerAddress(): string {
-  const network = dataSource.network();
-
-  if (network == "arbitrum-one") {
-    return "35Bcf3c30594191d53231E4FF333E8A770453e40";
-  } else if (network == "arbitrum-goerli") {
-    return "4bB92357243CC1aB9Cc578cCC6A6Aa3Ad9B853bF";
-  } else {
-    return "f71AA2E1DE77E8eE9cbB88A91Dbd228FF3160635";
-  }
-}
-
-export function getRoundsManagerAddress(): string {
-  const network = dataSource.network();
-
-  if (network == "arbitrum-one") {
-    return "dd6f56DcC28D3F5f27084381fE8Df634985cc39f";
-  } else if (network == "arbitrum-goerli") {
-    return "862F638260062Ee1e89a9a2D72CBE8aa7201704f";
-  } else {
-    return "4D3620B1d9146116707d763AEbFe3dF59E00a883";
-  }
-}
-
-export function getMinterAddress(): string {
-  const network = dataSource.network();
-
-  if (network == "arbitrum-one") {
-    return "c20DE37170B45774e6CD3d2304017fc962f27252";
-  } else if (network == "arbitrum-goerli") {
-    return "7cD8BEfd49050329F48F0ec9f0E29dE1E274E3A2";
-  } else {
-    return "3Eb31D0b427e40F01FA3d38F627fE928a33DA0E3";
-  }
-}
 
 // RoundsManager.blockNum() (the L1 block number on Arbitrum), cached on
 // Protocol per L2 block since the eth_call result cannot change within one.
@@ -668,7 +613,7 @@ export function getBlockNum(protocol: Protocol, block: ethereum.Block): BigInt {
   }
 
   let roundsManager = RoundsManager.bind(
-    Address.fromString(getRoundsManagerAddress())
+    Address.fromString(ROUNDS_MANAGER_ADDRESS)
   );
   protocol.l1BlockNum = roundsManager.blockNum();
   protocol.l1BlockCachedAtL2Block = block.number;

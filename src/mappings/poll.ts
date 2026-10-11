@@ -13,7 +13,6 @@ import {
   createOrLoadTranscoder,
   createOrLoadVote,
   getBlockNum,
-  getBondingManagerAddress,
   integerFromString,
   makeEventId,
   makeVoteId,
@@ -21,6 +20,7 @@ import {
   ZERO_BD,
   ZERO_BI,
 } from "../../utils/helpers";
+import { BONDING_MANAGER_ADDRESS } from "../../utils/addresses";
 import { BondingManager } from "../types/BondingManager/BondingManager";
 import { Delegator, Poll, PollTally, Vote, VoteEvent } from "../types/schema";
 import { PollTallyTemplate } from "../types/templates";
@@ -81,9 +81,8 @@ export function vote(event: VoteEventParam): void {
         v.voteStake = delegate.totalStake;
         v.registeredTranscoder = true;
       } else {
-        let bondingManagerAddress = getBondingManagerAddress();
         let bondingManager = BondingManager.bind(
-          Address.fromString(bondingManagerAddress)
+          Address.fromString(BONDING_MANAGER_ADDRESS)
         );
         let pendingStake = convertToDecimal(
           bondingManager.pendingStake(
@@ -114,9 +113,8 @@ export function vote(event: VoteEventParam): void {
     let context = new DataSourceContext();
     context.setString("poll", poll.id);
     context.setString("voter", event.params.voter.toHex());
-    let bondingManagerAddress = getBondingManagerAddress();
     PollTallyTemplate.createWithContext(
-      Address.fromString(bondingManagerAddress),
+      Address.fromString(BONDING_MANAGER_ADDRESS),
       context
     );
   }
