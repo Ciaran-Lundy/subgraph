@@ -16,8 +16,8 @@ export function pollCreated(event: PollCreated): void {
     getBlockNum(protocol, event.block)
   );
 
-  let poll = new Poll(event.params.poll.toHex());
-  poll.tally = event.params.poll.toHex();
+  let poll = new Poll(event.params.poll);
+  poll.tally = event.params.poll;
   poll.proposal = event.params.proposal.toString();
   poll.endBlock = event.params.endBlock;
   poll.quorum = event.params.quorum;
@@ -37,10 +37,10 @@ export function pollCreated(event: PollCreated): void {
   let pollCreatedEvent = new PollCreatedEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  pollCreatedEvent.transaction = event.transaction.hash.toHex();
+  pollCreatedEvent.transaction = event.transaction.hash;
   pollCreatedEvent.timestamp = event.block.timestamp.toI32();
   pollCreatedEvent.round = round.id;
-  pollCreatedEvent.poll = event.params.poll.toHex();
+  pollCreatedEvent.poll = event.params.poll;
   pollCreatedEvent.proposal = event.params.proposal;
   pollCreatedEvent.endBlock = event.params.endBlock;
   pollCreatedEvent.quorum = event.params.quorum;

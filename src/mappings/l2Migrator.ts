@@ -35,7 +35,7 @@ export function migrateDelegatorFinalized(
   let migrateDelegatorFinalizedEvent = new MigrateDelegatorFinalizedEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  migrateDelegatorFinalizedEvent.transaction = event.transaction.hash.toHex();
+  migrateDelegatorFinalizedEvent.transaction = event.transaction.hash;
   migrateDelegatorFinalizedEvent.timestamp = event.block.timestamp.toI32();
   migrateDelegatorFinalizedEvent.round = round.id;
   migrateDelegatorFinalizedEvent.l1Addr = event.params.params.l1Addr.toHex();
@@ -66,7 +66,7 @@ export function stakeClaimed(event: StakeClaimed): void {
   let stakeClaimedEvent = new StakeClaimedEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  stakeClaimedEvent.transaction = event.transaction.hash.toHex();
+  stakeClaimedEvent.transaction = event.transaction.hash;
   stakeClaimedEvent.timestamp = event.block.timestamp.toI32();
   stakeClaimedEvent.round = round.id;
   stakeClaimedEvent.delegator = event.params.delegator.toHex();
@@ -88,7 +88,7 @@ export function migrateSenderFinalized(event: MigrateSenderFinalized): void {
   let migrateSenderFinalizedEvent = new MigrateSenderFinalizedEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  migrateSenderFinalizedEvent.transaction = event.transaction.hash.toHex();
+  migrateSenderFinalizedEvent.transaction = event.transaction.hash;
   migrateSenderFinalizedEvent.timestamp = event.block.timestamp.toI32();
   migrateSenderFinalizedEvent.round = round.id;
   migrateSenderFinalizedEvent.l1Addr = event.params.params.l1Addr.toHex();
@@ -117,8 +117,7 @@ export function migrateUnbondingLocksFinalized(
     new MigrateUnbondingLocksFinalizedEvent(
       makeEventId(event.transaction.hash, event.logIndex)
     );
-  migrateUnbondingLocksFinalizedEvent.transaction =
-    event.transaction.hash.toHex();
+  migrateUnbondingLocksFinalizedEvent.transaction = event.transaction.hash;
   migrateUnbondingLocksFinalizedEvent.timestamp =
     event.block.timestamp.toI32();
   migrateUnbondingLocksFinalizedEvent.round = round.id;
@@ -148,7 +147,7 @@ export function delegatorPoolCreated(event: DelegatorPoolCreated): void {
   let delegatorPoolCreatedEvent = new DelegatorPoolCreatedEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  delegatorPoolCreatedEvent.transaction = event.transaction.hash.toHex();
+  delegatorPoolCreatedEvent.transaction = event.transaction.hash;
   delegatorPoolCreatedEvent.timestamp = event.block.timestamp.toI32();
   delegatorPoolCreatedEvent.round = round.id;
   delegatorPoolCreatedEvent.l1Addr = event.params.l1Addr.toHex();

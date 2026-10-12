@@ -51,11 +51,14 @@ export function leftPad(str: string, size: i32): string {
 }
 
 // Make a derived pool ID from a transcoder address
-export function makePoolId(transcoderAddress: string, roundId: string): string {
-  return leftPad(roundId, 10) + "-" + transcoderAddress;
+export function makePoolId(transcoderAddress: Bytes, roundId: string): string {
+  return leftPad(roundId, 10) + "-" + transcoderAddress.toHex();
 }
 
-export function createOrLoadPool(roundId: string, transcoderAddress: string): Pool {
+export function createOrLoadPool(
+  roundId: string,
+  transcoderAddress: Bytes
+): Pool {
   let poolId = makePoolId(transcoderAddress, roundId);
   let pool = Pool.load(poolId);
 
@@ -89,10 +92,10 @@ export function makeShareId(delegatorAddress: string, roundId: string): string {
 
 // Make a vote id
 export function makeVoteId(
-  delegatorAddress: string,
-  pollAddress: string
+  delegatorAddress: Bytes,
+  pollAddress: Bytes
 ): string {
-  return delegatorAddress + "-" + pollAddress;
+  return delegatorAddress.toHex() + "-" + pollAddress.toHex();
 }
 
 // Make a derived unlocking ID from a delegator address
@@ -142,9 +145,9 @@ export function convertToDecimal(eth: BigInt): BigDecimal {
 export function createOrLoadTransactionFromEvent<T extends ethereum.Event>(
   event: T
 ): Transaction {
-  let tx = Transaction.load(event.transaction.hash.toHex());
+  let tx = Transaction.load(event.transaction.hash);
   if (tx == null) {
-    tx = new Transaction(event.transaction.hash.toHex());
+    tx = new Transaction(event.transaction.hash);
 
     tx.blockNumber = event.block.number;
     // Every handler declares `receipt: true`; fall back to the gas limit
@@ -210,7 +213,7 @@ export function createOrLoadProtocol(): Protocol {
   return protocol;
 }
 
-export function createOrLoadBroadcaster(id: string): Broadcaster {
+export function createOrLoadBroadcaster(id: Bytes): Broadcaster {
   let broadcaster = Broadcaster.load(id);
 
   if (broadcaster == null) {
@@ -231,7 +234,7 @@ export function createOrLoadBroadcaster(id: string): Broadcaster {
 
 // Load the vote of `voter` on `pollId`, or create an unsaved placeholder that
 // only tracks nonVoteStake until the voter casts a vote
-export function createOrLoadVote(voter: string, pollId: string): Vote {
+export function createOrLoadVote(voter: Bytes, pollId: Bytes): Vote {
   let id = makeVoteId(voter, pollId);
   let vote = Vote.load(id);
 
@@ -249,11 +252,21 @@ export function createOrLoadVote(voter: string, pollId: string): Vote {
 }
 
 // The poll address of a vote id built by makeVoteId
-export function pollIdFromVoteId(voteId: string): string {
-  return voteId.slice(voteId.indexOf("-") + 1);
+export function pollIdFromVoteId(voteId: string): Bytes {
+  return Bytes.fromHexString(voteId.slice(voteId.indexOf("-") + 1));
 }
 
-export function createOrLoadTranscoder(id: string, timestamp: i32): Transcoder {
+// Index of `value` in `list` by content (Array#indexOf compares references)
+export function indexOfBytes(list: Array<Bytes>, value: Bytes): i32 {
+  for (let i = 0; i < list.length; i++) {
+    if (list[i].equals(value)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+export function createOrLoadTranscoder(id: Bytes, timestamp: i32): Transcoder {
   let transcoder = Transcoder.load(id);
   if (transcoder == null) {
     transcoder = new Transcoder(id);
@@ -286,7 +299,7 @@ export function createOrLoadTranscoder(id: string, timestamp: i32): Transcoder {
   return transcoder;
 }
 
-export function createOrLoadDelegator(id: string, timestamp: i32): Delegator {
+export function createOrLoadDelegator(id: Bytes, timestamp: i32): Delegator {
   let delegator = Delegator.load(id);
   if (delegator == null) {
     delegator = new Delegator(id);
@@ -331,7 +344,7 @@ export function updateDelegatorCounts(
   let sameDelegate =
     oldDelegate != null &&
     newDelegate != null &&
-    oldDelegate!.id == newDelegate!.id;
+    oldDelegate!.id.equals(newDelegate!.id);
   if (wasBonded && oldDelegate != null && !(isBonded && sameDelegate)) {
     oldDelegate!.delegatorCount = oldDelegate!.delegatorCount.minus(ONE_BI);
   }
@@ -340,12 +353,15 @@ export function updateDelegatorCounts(
   }
 }
 
-export function createOrUpdateLivepeerAccount(id: string, timestamp: i32): LivepeerAccount {
+export function createOrUpdateLivepeerAccount(
+  id: Bytes,
+  timestamp: i32
+): LivepeerAccount {
   let account = LivepeerAccount.load(id);
   if (account == null) {
     account = new LivepeerAccount(id);
-    account.delegator = EMPTY_ADDRESS.toHex();
-    account.delegate = EMPTY_ADDRESS.toHex();
+    account.delegator = EMPTY_ADDRESS;
+    account.delegate = EMPTY_ADDRESS;
   }
 
   account.lastUpdatedTimestamp = timestamp;

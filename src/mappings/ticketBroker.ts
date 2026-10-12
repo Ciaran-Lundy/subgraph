@@ -75,11 +75,11 @@ export function winningTicketRedeemed(event: WinningTicketRedeemed): void {
 
   createOrLoadTransactionFromEvent(event);
 
-  winningTicketRedeemedEvent.transaction = event.transaction.hash.toHex();
+  winningTicketRedeemedEvent.transaction = event.transaction.hash;
   winningTicketRedeemedEvent.timestamp = event.block.timestamp.toI32();
   winningTicketRedeemedEvent.round = round.id;
-  winningTicketRedeemedEvent.sender = event.params.sender.toHex();
-  winningTicketRedeemedEvent.recipient = event.params.recipient.toHex();
+  winningTicketRedeemedEvent.sender = event.params.sender;
+  winningTicketRedeemedEvent.recipient = event.params.recipient;
   winningTicketRedeemedEvent.faceValue = faceValue;
   winningTicketRedeemedEvent.faceValueUSD = faceValueUSD;
   winningTicketRedeemedEvent.winProb = event.params.winProb;
@@ -91,7 +91,7 @@ export function winningTicketRedeemed(event: WinningTicketRedeemed): void {
   // The faceValue of the ticket is subtracted from the sender's deposit, down
   // to zero. Any shortfall is claimed from the reserve, which the
   // ReserveClaimed handler already deducts with the actual (capped) amount.
-  let broadcaster = createOrLoadBroadcaster(event.params.sender.toHex());
+  let broadcaster = createOrLoadBroadcaster(event.params.sender);
   if (faceValue.gt(broadcaster.deposit)) {
     broadcaster.deposit = ZERO_BD;
   } else {
@@ -105,7 +105,7 @@ export function winningTicketRedeemed(event: WinningTicketRedeemed): void {
 
   // Update transcoder's fee volume
   let transcoder = createOrLoadTranscoder(
-    event.params.recipient.toHex(),
+    event.params.recipient,
     timestamp
   );
   // BondingManager.updateTranscoderWithFees() only runs, and so only moves
@@ -124,7 +124,7 @@ export function winningTicketRedeemed(event: WinningTicketRedeemed): void {
   protocol.save();
 
   // update the transcoder pool fees
-  let pool = createOrLoadPool(round.id, event.params.recipient.toHex());
+  let pool = createOrLoadPool(round.id, event.params.recipient);
   pool.fees = pool.fees.plus(amount);
   pool.save();
 
@@ -156,9 +156,9 @@ export function winningTicketTransfer(event: WinningTicketTransfer): void {
     protocol,
     getBlockNum(protocol, event.block)
   );
-  createOrLoadBroadcaster(event.params.sender.toHex());
+  createOrLoadBroadcaster(event.params.sender);
   createOrLoadTranscoder(
-    event.params.recipient.toHex(),
+    event.params.recipient,
     event.block.timestamp.toI32()
   );
   createOrLoadTransactionFromEvent(event);
@@ -166,11 +166,11 @@ export function winningTicketTransfer(event: WinningTicketTransfer): void {
   let winningTicketTransferEvent = new WinningTicketTransferEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  winningTicketTransferEvent.transaction = event.transaction.hash.toHex();
+  winningTicketTransferEvent.transaction = event.transaction.hash;
   winningTicketTransferEvent.timestamp = event.block.timestamp.toI32();
   winningTicketTransferEvent.round = round.id;
-  winningTicketTransferEvent.sender = event.params.sender.toHex();
-  winningTicketTransferEvent.recipient = event.params.recipient.toHex();
+  winningTicketTransferEvent.sender = event.params.sender;
+  winningTicketTransferEvent.recipient = event.params.recipient;
   winningTicketTransferEvent.amount = convertToDecimal(event.params.amount);
   winningTicketTransferEvent.save();
 }
@@ -181,7 +181,7 @@ export function depositFunded(event: DepositFunded): void {
     protocol,
     getBlockNum(protocol, event.block)
   );
-  let broadcaster = createOrLoadBroadcaster(event.params.sender.toHex());
+  let broadcaster = createOrLoadBroadcaster(event.params.sender);
   const timestamp = event.block.timestamp.toI32();
   
   // One-time initialization: set to start of day for this timestamp.
@@ -200,10 +200,10 @@ export function depositFunded(event: DepositFunded): void {
   let depositFundedEvent = new DepositFundedEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  depositFundedEvent.transaction = event.transaction.hash.toHex();
+  depositFundedEvent.transaction = event.transaction.hash;
   depositFundedEvent.timestamp = timestamp;
   depositFundedEvent.round = round.id;
-  depositFundedEvent.sender = event.params.sender.toHex();
+  depositFundedEvent.sender = event.params.sender;
   depositFundedEvent.amount = convertToDecimal(event.params.amount);
   depositFundedEvent.save();
 }
@@ -214,7 +214,7 @@ export function reserveFunded(event: ReserveFunded): void {
     protocol,
     getBlockNum(protocol, event.block)
   );
-  let broadcaster = createOrLoadBroadcaster(event.params.reserveHolder.toHex());
+  let broadcaster = createOrLoadBroadcaster(event.params.reserveHolder);
   const timestamp = event.block.timestamp.toI32();
 
   // One-time initialization: set to start of day for this timestamp.
@@ -233,10 +233,10 @@ export function reserveFunded(event: ReserveFunded): void {
   let reserveFundedEvent = new ReserveFundedEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  reserveFundedEvent.transaction = event.transaction.hash.toHex();
+  reserveFundedEvent.transaction = event.transaction.hash;
   reserveFundedEvent.timestamp = timestamp;
   reserveFundedEvent.round = round.id;
-  reserveFundedEvent.reserveHolder = event.params.reserveHolder.toHex();
+  reserveFundedEvent.reserveHolder = event.params.reserveHolder;
   reserveFundedEvent.amount = convertToDecimal(event.params.amount);
   reserveFundedEvent.save();
 }
@@ -247,7 +247,7 @@ export function reserveClaimed(event: ReserveClaimed): void {
     protocol,
     getBlockNum(protocol, event.block)
   );
-  let broadcaster = createOrLoadBroadcaster(event.params.reserveHolder.toHex());
+  let broadcaster = createOrLoadBroadcaster(event.params.reserveHolder);
   broadcaster.reserve = broadcaster.reserve.minus(
     convertToDecimal(event.params.amount)
   );
@@ -258,11 +258,11 @@ export function reserveClaimed(event: ReserveClaimed): void {
   let reserveClaimedEvent = new ReserveClaimedEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  reserveClaimedEvent.transaction = event.transaction.hash.toHex();
+  reserveClaimedEvent.transaction = event.transaction.hash;
   reserveClaimedEvent.timestamp = event.block.timestamp.toI32();
   reserveClaimedEvent.round = round.id;
-  reserveClaimedEvent.reserveHolder = event.params.reserveHolder.toHex();
-  reserveClaimedEvent.claimant = event.params.claimant.toHex();
+  reserveClaimedEvent.reserveHolder = event.params.reserveHolder;
+  reserveClaimedEvent.claimant = event.params.claimant;
   reserveClaimedEvent.amount = convertToDecimal(event.params.amount);
   reserveClaimedEvent.save();
 }
@@ -273,7 +273,7 @@ export function withdrawal(event: Withdrawal): void {
     protocol,
     getBlockNum(protocol, event.block)
   );
-  let broadcaster = createOrLoadBroadcaster(event.params.sender.toHex());
+  let broadcaster = createOrLoadBroadcaster(event.params.sender);
   broadcaster.deposit = ZERO_BD;
   broadcaster.reserve = ZERO_BD;
   broadcaster.save();
@@ -283,10 +283,10 @@ export function withdrawal(event: Withdrawal): void {
   let withdrawalEvent = new WithdrawalEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  withdrawalEvent.transaction = event.transaction.hash.toHex();
+  withdrawalEvent.transaction = event.transaction.hash;
   withdrawalEvent.timestamp = event.block.timestamp.toI32();
   withdrawalEvent.round = round.id;
-  withdrawalEvent.sender = event.params.sender.toHex();
+  withdrawalEvent.sender = event.params.sender;
   withdrawalEvent.deposit = convertToDecimal(event.params.deposit);
   withdrawalEvent.reserve = convertToDecimal(event.params.reserve);
   withdrawalEvent.save();
@@ -298,7 +298,7 @@ export function unlock(event: Unlock): void {
     protocol,
     getBlockNum(protocol, event.block)
   );
-  let broadcaster = createOrLoadBroadcaster(event.params.sender.toHex());
+  let broadcaster = createOrLoadBroadcaster(event.params.sender);
   broadcaster.isUnlocked = true;
   broadcaster.unlockStartRound = event.params.startRound;
   broadcaster.unlockEndRound = event.params.endRound;
@@ -309,10 +309,10 @@ export function unlock(event: Unlock): void {
   let unlockEvent = new UnlockEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  unlockEvent.transaction = event.transaction.hash.toHex();
+  unlockEvent.transaction = event.transaction.hash;
   unlockEvent.timestamp = event.block.timestamp.toI32();
   unlockEvent.round = round.id;
-  unlockEvent.sender = event.params.sender.toHex();
+  unlockEvent.sender = event.params.sender;
   unlockEvent.startRound = event.params.startRound;
   unlockEvent.endRound = event.params.endRound;
   unlockEvent.save();
@@ -324,7 +324,7 @@ export function unlockCancelled(event: UnlockCancelled): void {
     protocol,
     getBlockNum(protocol, event.block)
   );
-  let broadcaster = createOrLoadBroadcaster(event.params.sender.toHex());
+  let broadcaster = createOrLoadBroadcaster(event.params.sender);
   broadcaster.isUnlocked = false;
   broadcaster.save();
 
@@ -333,10 +333,10 @@ export function unlockCancelled(event: UnlockCancelled): void {
   let unlockCancelledEvent = new UnlockCancelledEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  unlockCancelledEvent.transaction = event.transaction.hash.toHex();
+  unlockCancelledEvent.transaction = event.transaction.hash;
   unlockCancelledEvent.timestamp = event.block.timestamp.toI32();
   unlockCancelledEvent.round = round.id;
-  unlockCancelledEvent.sender = event.params.sender.toHex();
+  unlockCancelledEvent.sender = event.params.sender;
   unlockCancelledEvent.save();
 }
 
@@ -352,7 +352,7 @@ export function parameterUpdate(event: ParameterUpdate): void {
   let parameterUpdateEvent = new ParameterUpdateEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  parameterUpdateEvent.transaction = event.transaction.hash.toHex();
+  parameterUpdateEvent.transaction = event.transaction.hash;
   parameterUpdateEvent.timestamp = event.block.timestamp.toI32();
   parameterUpdateEvent.round = round.id;
   parameterUpdateEvent.param = event.params.param;

@@ -31,7 +31,7 @@ export function delegatorBondedAmountChanged(
   let changedEvent = new DelegatorBondedAmountChangedEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  changedEvent.transaction = event.transaction.hash.toHex();
+  changedEvent.transaction = event.transaction.hash;
   changedEvent.timestamp = event.block.timestamp.toI32();
   changedEvent.round = round.id;
   // The ABI names this parameter "delegate", but BondingVotes emits it for the
@@ -60,7 +60,7 @@ export function delegateChanged(event: DelegateChanged): void {
   let delegateChangedEvent = new DelegateChangedEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  delegateChangedEvent.transaction = event.transaction.hash.toHex();
+  delegateChangedEvent.transaction = event.transaction.hash;
   delegateChangedEvent.timestamp = event.block.timestamp.toI32();
   delegateChangedEvent.round = round.id;
   delegateChangedEvent.delegator = event.params.delegator.toHex();
@@ -81,7 +81,7 @@ export function delegateVotesChanged(event: DelegateVotesChanged): void {
   let delegateVotesChangedEvent = new DelegateVotesChangedEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  delegateVotesChangedEvent.transaction = event.transaction.hash.toHex();
+  delegateVotesChangedEvent.transaction = event.transaction.hash;
   delegateVotesChangedEvent.timestamp = event.block.timestamp.toI32();
   delegateVotesChangedEvent.round = round.id;
   delegateVotesChangedEvent.delegate = event.params.delegate.toHex();

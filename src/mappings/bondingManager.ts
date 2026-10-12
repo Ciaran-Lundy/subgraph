@@ -9,6 +9,7 @@ import {
   createOrLoadTranscoder,
   EMPTY_ADDRESS,
   getBlockNum,
+  indexOfBytes,
   integerFromString,
   makeEventId,
   makeUnbondingLockId,
@@ -76,15 +77,15 @@ export function bond(event: Bond): void {
     getBlockNum(protocol, event.block)
   );
   let transcoder = createOrLoadTranscoder(
-    event.params.newDelegate.toHex(),
+    event.params.newDelegate,
     event.block.timestamp.toI32()
   );
   let delegate = createOrLoadDelegator(
-    event.params.newDelegate.toHex(),
+    event.params.newDelegate,
     event.block.timestamp.toI32()
   );
   let delegator = createOrLoadDelegator(
-    event.params.delegator.toHex(),
+    event.params.delegator,
     event.block.timestamp.toI32()
   );
   let currentRound = integerFromString(round.id);
@@ -97,7 +98,7 @@ export function bond(event: Bond): void {
   // If self delegating, set status and assign reference to self
   if (event.params.delegator.toHex() == event.params.newDelegate.toHex()) {
     transcoder.status = "Registered";
-    transcoder.delegator = event.params.delegator.toHex();
+    transcoder.delegator = event.params.delegator;
   }
 
   // Changing delegate
@@ -106,11 +107,11 @@ export function bond(event: Bond): void {
     event.params.oldDelegate.toHex() != event.params.newDelegate.toHex()
   ) {
     oldTranscoder = createOrLoadTranscoder(
-      event.params.oldDelegate.toHex(),
+      event.params.oldDelegate,
       event.block.timestamp.toI32()
     );
     let oldDelegate = createOrLoadDelegator(
-      event.params.oldDelegate.toHex(),
+      event.params.oldDelegate,
       event.block.timestamp.toI32()
     );
     let oldDelegateData = bondingManager.getDelegator(event.params.oldDelegate);
@@ -158,7 +159,7 @@ export function bond(event: Bond): void {
   updateLastActiveStakeUpdateRound(transcoder, currentRound);
   delegate.delegatedAmount = convertToDecimal(delegateData.value3);
 
-  delegator.delegate = event.params.newDelegate.toHex();
+  delegator.delegate = event.params.newDelegate;
   delegator.lastClaimRound = round.id;
   delegator.bondedAmount = convertToDecimal(event.params.bondedAmount);
   delegator.fees = convertToDecimal(delegatorData.value1);
@@ -178,12 +179,12 @@ export function bond(event: Bond): void {
   let bondEvent = new BondEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  bondEvent.transaction = event.transaction.hash.toHex();
+  bondEvent.transaction = event.transaction.hash;
   bondEvent.timestamp = event.block.timestamp.toI32();
   bondEvent.round = round.id;
-  bondEvent.newDelegate = event.params.newDelegate.toHex();
-  bondEvent.oldDelegate = event.params.oldDelegate.toHex();
-  bondEvent.delegator = event.params.delegator.toHex();
+  bondEvent.newDelegate = event.params.newDelegate;
+  bondEvent.oldDelegate = event.params.oldDelegate;
+  bondEvent.delegator = event.params.delegator;
   bondEvent.bondedAmount = convertToDecimal(event.params.bondedAmount);
   bondEvent.additionalAmount = convertToDecimal(event.params.additionalAmount);
   bondEvent.save();
@@ -191,9 +192,9 @@ export function bond(event: Bond): void {
   updateVotesOnBond(
     protocol,
     getBlockNum(protocol, event.block),
-    event.params.delegator.toHex(),
-    event.params.oldDelegate.toHex(),
-    event.params.newDelegate.toHex(),
+    event.params.delegator,
+    event.params.oldDelegate,
+    event.params.newDelegate,
     event.params.bondedAmount,
     event.params.additionalAmount
   );
@@ -206,7 +207,7 @@ export function transferBond(event: TransferBond): void {
     getBlockNum(protocol, event.block)
   );
   let delegator = createOrLoadDelegator(
-    event.params.newDelegator.toHex(),
+    event.params.newDelegator,
     event.block.timestamp.toI32()
   );
   let oldUniqueUnbondingLockId = makeUnbondingLockId(
@@ -243,7 +244,7 @@ export function transferBond(event: TransferBond): void {
     );
   } else {
     newUnbondingLock.unbondingLockId = event.params.newUnbondingLockId.toI32();
-    newUnbondingLock.delegator = event.params.newDelegator.toHex();
+    newUnbondingLock.delegator = event.params.newDelegator;
     newUnbondingLock.sender = event.params.oldDelegator.toHex();
     newUnbondingLock.delegate = oldUnbondingLock.delegate;
     newUnbondingLock.withdrawRound = oldUnbondingLock.withdrawRound;
@@ -259,12 +260,12 @@ export function transferBond(event: TransferBond): void {
   let transferBondEvent = new TransferBondEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  transferBondEvent.transaction = event.transaction.hash.toHex();
+  transferBondEvent.transaction = event.transaction.hash;
   transferBondEvent.timestamp = event.block.timestamp.toI32();
   transferBondEvent.round = round.id;
   transferBondEvent.amount = convertToDecimal(event.params.amount);
-  transferBondEvent.newDelegator = event.params.newDelegator.toHex();
-  transferBondEvent.oldDelegator = event.params.oldDelegator.toHex();
+  transferBondEvent.newDelegator = event.params.newDelegator;
+  transferBondEvent.oldDelegator = event.params.oldDelegator;
   transferBondEvent.newUnbondingLockId =
     event.params.newUnbondingLockId.toI32();
   transferBondEvent.oldUnbondingLockId =
@@ -282,7 +283,7 @@ export function unbond(event: Unbond): void {
   let withdrawRound = event.params.withdrawRound;
   let amount = convertToDecimal(event.params.amount);
   let delegator = createOrLoadDelegator(
-    event.params.delegator.toHex(),
+    event.params.delegator,
     event.block.timestamp.toI32()
   );
   let delegateData = bondingManager.getDelegator(event.params.delegate);
@@ -292,11 +293,11 @@ export function unbond(event: Unbond): void {
     getBlockNum(protocol, event.block)
   );
   let transcoder = createOrLoadTranscoder(
-    event.params.delegate.toHex(),
+    event.params.delegate,
     event.block.timestamp.toI32()
   );
   let delegate = createOrLoadDelegator(
-    event.params.delegate.toHex(),
+    event.params.delegate,
     event.block.timestamp.toI32()
   );
   let unbondingLock = UnbondingLock.load(uniqueUnbondingLockId);
@@ -341,9 +342,9 @@ export function unbond(event: Unbond): void {
   }
 
   unbondingLock.unbondingLockId = event.params.unbondingLockId.toI32();
-  unbondingLock.delegator = event.params.delegator.toHex();
+  unbondingLock.delegator = event.params.delegator;
   unbondingLock.sender = event.params.delegator.toHex();
-  unbondingLock.delegate = event.params.delegate.toHex();
+  unbondingLock.delegate = event.params.delegate;
   unbondingLock.withdrawRound = withdrawRound;
   unbondingLock.amount = amount;
 
@@ -360,13 +361,13 @@ export function unbond(event: Unbond): void {
   let unbondEvent = new UnbondEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  unbondEvent.transaction = event.transaction.hash.toHex();
+  unbondEvent.transaction = event.transaction.hash;
   unbondEvent.timestamp = event.block.timestamp.toI32();
   unbondEvent.round = round.id;
   unbondEvent.amount = amount;
   unbondEvent.withdrawRound = unbondingLock.withdrawRound;
   unbondEvent.unbondingLockId = event.params.unbondingLockId.toI32();
-  unbondEvent.delegate = event.params.delegate.toHex();
+  unbondEvent.delegate = event.params.delegate;
   unbondEvent.delegator = delegator.id;
   unbondEvent.save();
 
@@ -374,8 +375,8 @@ export function unbond(event: Unbond): void {
     protocol,
     getBlockNum(protocol, event.block),
     round.id,
-    event.params.delegator.toHex(),
-    event.params.delegate.toHex()
+    event.params.delegator,
+    event.params.delegate
   );
 }
 
@@ -388,15 +389,15 @@ export function rebond(event: Rebond): void {
     getBlockNum(protocol, event.block)
   );
   let transcoder = createOrLoadTranscoder(
-    event.params.delegate.toHex(),
+    event.params.delegate,
     event.block.timestamp.toI32()
   );
   let delegate = createOrLoadDelegator(
-    event.params.delegate.toHex(),
+    event.params.delegate,
     event.block.timestamp.toI32()
   );
   let delegator = createOrLoadDelegator(
-    event.params.delegator.toHex(),
+    event.params.delegator,
     event.block.timestamp.toI32()
   );
   let delegateData = bondingManager.getDelegator(event.params.delegate);
@@ -413,7 +414,7 @@ export function rebond(event: Rebond): void {
     // If self-bonding then update transcoder status
     if (event.params.delegate.toHex() == event.params.delegator.toHex()) {
       transcoder.status = "Registered";
-      transcoder.delegator = event.params.delegator.toHex();
+      transcoder.delegator = event.params.delegator;
     }
   }
   updateDelegatorCounts(
@@ -427,7 +428,7 @@ export function rebond(event: Rebond): void {
 
   // update delegator
   let delegatorData = bondingManager.getDelegator(event.params.delegator);
-  delegator.delegate = event.params.delegate.toHex();
+  delegator.delegate = event.params.delegate;
   delegator.startRound = delegatorData.value4;
   delegator.lastClaimRound = round.id;
   delegator.bondedAmount = convertToDecimal(delegatorData.value0);
@@ -464,7 +465,7 @@ export function rebond(event: Rebond): void {
   let rebondEvent = new RebondEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  rebondEvent.transaction = event.transaction.hash.toHex();
+  rebondEvent.transaction = event.transaction.hash;
   rebondEvent.timestamp = event.block.timestamp.toI32();
   rebondEvent.round = round.id;
   rebondEvent.delegator = delegator.id;
@@ -477,8 +478,8 @@ export function rebond(event: Rebond): void {
     protocol,
     getBlockNum(protocol, event.block),
     round.id,
-    event.params.delegator.toHex(),
-    event.params.delegate.toHex()
+    event.params.delegator,
+    event.params.delegate
   );
 }
 
@@ -501,19 +502,19 @@ export function withdrawStake(event: WithdrawStake): void {
   let withdrawStakeEvent = new WithdrawStakeEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  withdrawStakeEvent.transaction = event.transaction.hash.toHex();
+  withdrawStakeEvent.transaction = event.transaction.hash;
   withdrawStakeEvent.timestamp = event.block.timestamp.toI32();
   withdrawStakeEvent.round = round.id;
   withdrawStakeEvent.amount = convertToDecimal(event.params.amount);
   withdrawStakeEvent.unbondingLockId = event.params.unbondingLockId.toI32();
-  withdrawStakeEvent.delegator = event.params.delegator.toHex();
+  withdrawStakeEvent.delegator = event.params.delegator;
   withdrawStakeEvent.save();
 }
 
 export function withdrawFees(event: WithdrawFees): void {
   let bondingManager = BondingManager.bind(event.address);
   let delegator = createOrLoadDelegator(
-    event.params.delegator.toHex(),
+    event.params.delegator,
     event.block.timestamp.toI32()
   );
   let delegatorData = bondingManager.getDelegator(event.params.delegator);
@@ -528,12 +529,12 @@ export function withdrawFees(event: WithdrawFees): void {
   let withdrawFeesEvent = new WithdrawFeesEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  withdrawFeesEvent.transaction = event.transaction.hash.toHex();
+  withdrawFeesEvent.transaction = event.transaction.hash;
   withdrawFeesEvent.timestamp = event.block.timestamp.toI32();
   withdrawFeesEvent.round = round.id;
   withdrawFeesEvent.amount = convertToDecimal(event.params.amount);
   withdrawFeesEvent.recipient = event.params.recipient.toHex();
-  withdrawFeesEvent.delegator = event.params.delegator.toHex();
+  withdrawFeesEvent.delegator = event.params.delegator;
   withdrawFeesEvent.save();
 
   delegator.bondedAmount = convertToDecimal(delegatorData.value0);
@@ -564,7 +565,7 @@ export function parameterUpdate(event: ParameterUpdate): void {
   let parameterUpdateEvent = new ParameterUpdateEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  parameterUpdateEvent.transaction = event.transaction.hash.toHex();
+  parameterUpdateEvent.transaction = event.transaction.hash;
   parameterUpdateEvent.timestamp = event.block.timestamp.toI32();
   parameterUpdateEvent.param = event.params.param;
   parameterUpdateEvent.round = protocol.currentRound;
@@ -574,11 +575,11 @@ export function parameterUpdate(event: ParameterUpdate): void {
 // Handler for Reward events
 export function reward(event: Reward): void {
   let transcoder = createOrLoadTranscoder(
-    event.params.transcoder.toHex(),
+    event.params.transcoder,
     event.block.timestamp.toI32()
   );
   let delegate = createOrLoadDelegator(
-    event.params.transcoder.toHex(),
+    event.params.transcoder,
     event.block.timestamp.toI32()
   );
   let protocol = createOrLoadProtocol();
@@ -586,7 +587,7 @@ export function reward(event: Reward): void {
     protocol,
     getBlockNum(protocol, event.block)
   );
-  let pool = createOrLoadPool(round.id, event.params.transcoder.toHex());
+  let pool = createOrLoadPool(round.id, event.params.transcoder);
 
   delegate.delegatedAmount = delegate.delegatedAmount.plus(
     convertToDecimal(event.params.amount)
@@ -612,11 +613,11 @@ export function reward(event: Reward): void {
   let rewardEvent = new RewardEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  rewardEvent.transaction = event.transaction.hash.toHex();
+  rewardEvent.transaction = event.transaction.hash;
   rewardEvent.timestamp = event.block.timestamp.toI32();
   rewardEvent.round = round.id;
   rewardEvent.rewardTokens = convertToDecimal(event.params.amount);
-  rewardEvent.delegate = event.params.transcoder.toHex();
+  rewardEvent.delegate = event.params.transcoder;
   rewardEvent.save();
 
   updateVotesOnReward(
@@ -630,7 +631,7 @@ export function reward(event: Reward): void {
 // Handler for TranscoderSlashed events
 export function transcoderSlashed(event: TranscoderSlashed): void {
   let transcoder = createOrLoadTranscoder(
-    event.params.transcoder.toHex(),
+    event.params.transcoder,
     event.block.timestamp.toI32()
   );
   let bondingManager = BondingManager.bind(event.address);
@@ -652,10 +653,10 @@ export function transcoderSlashed(event: TranscoderSlashed): void {
   let transcoderSlashedEvent = new TranscoderSlashedEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  transcoderSlashedEvent.transaction = event.transaction.hash.toHex();
+  transcoderSlashedEvent.transaction = event.transaction.hash;
   transcoderSlashedEvent.timestamp = event.block.timestamp.toI32();
   transcoderSlashedEvent.round = round.id;
-  transcoderSlashedEvent.delegate = event.params.transcoder.toHex();
+  transcoderSlashedEvent.delegate = event.params.transcoder;
   transcoderSlashedEvent.finder = event.params.finder;
   transcoderSlashedEvent.penalty = convertToDecimal(event.params.penalty);
   transcoderSlashedEvent.finderReward = event.params.finderReward;
@@ -669,7 +670,7 @@ export function transcoderUpdate(event: TranscoderUpdate): void {
     getBlockNum(protocol, event.block)
   );
   let transcoder = createOrLoadTranscoder(
-    event.params.transcoder.toHex(),
+    event.params.transcoder,
     event.block.timestamp.toI32()
   );
   if (transcoder.rewardCut.notEqual(event.params.rewardCut)) {
@@ -687,12 +688,12 @@ export function transcoderUpdate(event: TranscoderUpdate): void {
   let transcoderUpdateEvent = new TranscoderUpdateEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  transcoderUpdateEvent.transaction = event.transaction.hash.toHex();
+  transcoderUpdateEvent.transaction = event.transaction.hash;
   transcoderUpdateEvent.timestamp = event.block.timestamp.toI32();
   transcoderUpdateEvent.round = round.id;
   transcoderUpdateEvent.rewardCut = event.params.rewardCut;
   transcoderUpdateEvent.feeShare = event.params.feeShare;
-  transcoderUpdateEvent.delegate = event.params.transcoder.toHex();
+  transcoderUpdateEvent.delegate = event.params.transcoder;
   transcoderUpdateEvent.save();
 }
 
@@ -703,7 +704,7 @@ export function rewardCallerSet(event: RewardCallerSet): void {
     getBlockNum(protocol, event.block)
   );
   let transcoder = createOrLoadTranscoder(
-    event.params.transcoder.toHex(),
+    event.params.transcoder,
     event.block.timestamp.toI32()
   );
 
@@ -720,10 +721,10 @@ export function rewardCallerSet(event: RewardCallerSet): void {
   let rewardCallerSetEvent = new RewardCallerSetEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  rewardCallerSetEvent.transaction = event.transaction.hash.toHex();
+  rewardCallerSetEvent.transaction = event.transaction.hash;
   rewardCallerSetEvent.timestamp = event.block.timestamp.toI32();
   rewardCallerSetEvent.round = round.id;
-  rewardCallerSetEvent.delegate = event.params.transcoder.toHex();
+  rewardCallerSetEvent.delegate = event.params.transcoder;
   rewardCallerSetEvent.rewardCaller = event.params.rewardCaller.toHex();
   rewardCallerSetEvent.save();
 }
@@ -735,7 +736,7 @@ export function transcoderActivated(event: TranscoderActivated): void {
     getBlockNum(protocol, event.block)
   );
   let transcoder = createOrLoadTranscoder(
-    event.params.transcoder.toHex(),
+    event.params.transcoder,
     event.block.timestamp.toI32()
   );
 
@@ -747,9 +748,12 @@ export function transcoderActivated(event: TranscoderActivated): void {
 
   // if transcoder was pending deactivation, remove it from deactivation array
   let pendingDeactivation = protocol.pendingDeactivation;
-  if (pendingDeactivation.includes(event.params.transcoder.toHex())) {
-    let index = pendingDeactivation.indexOf(event.params.transcoder.toHex());
-    pendingDeactivation.splice(index, 1);
+  let deactivationIndex = indexOfBytes(
+    pendingDeactivation,
+    event.params.transcoder
+  );
+  if (deactivationIndex >= 0) {
+    pendingDeactivation.splice(deactivationIndex, 1);
     protocol.pendingDeactivation = pendingDeactivation;
   }
 
@@ -757,7 +761,7 @@ export function transcoderActivated(event: TranscoderActivated): void {
 
   // Add transcoder to list of transcoders pending activation
   let pendingActivation = protocol.pendingActivation;
-  pendingActivation.push(event.params.transcoder.toHex());
+  pendingActivation.push(event.params.transcoder);
   protocol.pendingActivation = pendingActivation;
   protocol.save();
 
@@ -766,17 +770,17 @@ export function transcoderActivated(event: TranscoderActivated): void {
   let transcoderActivatedEvent = new TranscoderActivatedEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  transcoderActivatedEvent.transaction = event.transaction.hash.toHex();
+  transcoderActivatedEvent.transaction = event.transaction.hash;
   transcoderActivatedEvent.timestamp = event.block.timestamp.toI32();
   transcoderActivatedEvent.round = round.id;
   transcoderActivatedEvent.activationRound = event.params.activationRound;
-  transcoderActivatedEvent.delegate = event.params.transcoder.toHex();
+  transcoderActivatedEvent.delegate = event.params.transcoder;
   transcoderActivatedEvent.save();
 }
 
 export function transcoderDeactivated(event: TranscoderDeactivated): void {
   let transcoder = createOrLoadTranscoder(
-    event.params.transcoder.toHex(),
+    event.params.transcoder,
     event.block.timestamp.toI32()
   );
   let protocol = createOrLoadProtocol();
@@ -791,9 +795,12 @@ export function transcoderDeactivated(event: TranscoderDeactivated): void {
 
   // if transcoder was pending activation, remove it from activation array
   let pendingActivation = protocol.pendingActivation;
-  if (pendingActivation.includes(event.params.transcoder.toHex())) {
-    let index = pendingActivation.indexOf(event.params.transcoder.toHex());
-    pendingActivation.splice(index, 1);
+  let activationIndex = indexOfBytes(
+    pendingActivation,
+    event.params.transcoder
+  );
+  if (activationIndex >= 0) {
+    pendingActivation.splice(activationIndex, 1);
     protocol.pendingActivation = pendingActivation;
   }
 
@@ -801,7 +808,7 @@ export function transcoderDeactivated(event: TranscoderDeactivated): void {
 
   // Add transcoder to list of transcoders pending deactivation
   let pendingDeactivation = protocol.pendingDeactivation;
-  pendingDeactivation.push(event.params.transcoder.toHex());
+  pendingDeactivation.push(event.params.transcoder);
   protocol.pendingDeactivation = pendingDeactivation;
   protocol.save();
 
@@ -810,11 +817,11 @@ export function transcoderDeactivated(event: TranscoderDeactivated): void {
   let transcoderDeactivatedEvent = new TranscoderDeactivatedEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  transcoderDeactivatedEvent.transaction = event.transaction.hash.toHex();
+  transcoderDeactivatedEvent.transaction = event.transaction.hash;
   transcoderDeactivatedEvent.timestamp = event.block.timestamp.toI32();
   transcoderDeactivatedEvent.round = round.id;
   transcoderDeactivatedEvent.deactivationRound = event.params.deactivationRound;
-  transcoderDeactivatedEvent.delegate = event.params.transcoder.toHex();
+  transcoderDeactivatedEvent.delegate = event.params.transcoder;
   transcoderDeactivatedEvent.save();
 }
 
@@ -825,7 +832,7 @@ export function earningsClaimed(event: EarningsClaimed): void {
     getBlockNum(protocol, event.block)
   );
   let delegator = createOrLoadDelegator(
-    event.params.delegator.toHex(),
+    event.params.delegator,
     event.block.timestamp.toI32()
   );
   delegator.lastClaimRound = event.params.endRound.toString();
@@ -840,11 +847,11 @@ export function earningsClaimed(event: EarningsClaimed): void {
   let earningsClaimedEvent = new EarningsClaimedEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  earningsClaimedEvent.transaction = event.transaction.hash.toHex();
+  earningsClaimedEvent.transaction = event.transaction.hash;
   earningsClaimedEvent.timestamp = event.block.timestamp.toI32();
   earningsClaimedEvent.round = round.id;
-  earningsClaimedEvent.delegate = event.params.delegate.toHex();
-  earningsClaimedEvent.delegator = event.params.delegator.toHex();
+  earningsClaimedEvent.delegate = event.params.delegate;
+  earningsClaimedEvent.delegator = event.params.delegator;
   earningsClaimedEvent.startRound = event.params.startRound;
   earningsClaimedEvent.endRound = event.params.endRound.toString();
   earningsClaimedEvent.rewardTokens = convertToDecimal(event.params.rewards);
@@ -854,7 +861,7 @@ export function earningsClaimed(event: EarningsClaimed): void {
   let snapshot = new DelegatorRoundSnapshot(0);
   snapshot.timestamp = timeseriesTimestamp(event.block);
   snapshot.delegator = delegator.id;
-  snapshot.delegate = event.params.delegate.toHex();
+  snapshot.delegate = event.params.delegate;
   snapshot.round = event.params.endRound;
   snapshot.bondedAmount = delegator.bondedAmount;
   snapshot.rewardTokens = earningsClaimedEvent.rewardTokens;
@@ -886,7 +893,7 @@ export function treasuryReward(event: TreasuryReward): void {
     getBlockNum(protocol, event.block)
   );
   createOrLoadTranscoder(
-    event.params.transcoder.toHex(),
+    event.params.transcoder,
     event.block.timestamp.toI32()
   );
 
@@ -895,10 +902,10 @@ export function treasuryReward(event: TreasuryReward): void {
   let treasuryRewardEvent = new TreasuryRewardEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  treasuryRewardEvent.transaction = event.transaction.hash.toHex();
+  treasuryRewardEvent.transaction = event.transaction.hash;
   treasuryRewardEvent.timestamp = event.block.timestamp.toI32();
   treasuryRewardEvent.round = round.id;
-  treasuryRewardEvent.delegate = event.params.transcoder.toHex();
+  treasuryRewardEvent.delegate = event.params.transcoder;
   treasuryRewardEvent.treasury = event.params.treasury.toHex();
   treasuryRewardEvent.amount = convertToDecimal(event.params.amount);
   treasuryRewardEvent.save();

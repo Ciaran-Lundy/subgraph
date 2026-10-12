@@ -30,7 +30,7 @@ export function pause(event: Pause): void {
   let pauseEvent = new PauseEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  pauseEvent.transaction = event.transaction.hash.toHex();
+  pauseEvent.transaction = event.transaction.hash;
   pauseEvent.timestamp = event.block.timestamp.toI32();
   pauseEvent.round = round.id;
   pauseEvent.save();
@@ -50,7 +50,7 @@ export function unpause(event: Unpause): void {
   let unpauseEvent = new UnpauseEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  unpauseEvent.transaction = event.transaction.hash.toHex();
+  unpauseEvent.transaction = event.transaction.hash;
   unpauseEvent.timestamp = event.block.timestamp.toI32();
   unpauseEvent.round = round.id;
   unpauseEvent.save();
@@ -64,7 +64,7 @@ export function setContractInfo(event: SetContractInfo): void {
   let setContractInfoEvent = new SetContractInfoEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  setContractInfoEvent.transaction = event.transaction.hash.toHex();
+  setContractInfoEvent.transaction = event.transaction.hash;
   setContractInfoEvent.timestamp = event.block.timestamp.toI32();
   setContractInfoEvent.blockNumber = event.block.number;
   setContractInfoEvent.contractId = event.params.id;

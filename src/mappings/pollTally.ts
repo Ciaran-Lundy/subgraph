@@ -1,8 +1,15 @@
-import { Address, BigDecimal, BigInt, log } from "@graphprotocol/graph-ts";
+import {
+  Address,
+  BigDecimal,
+  BigInt,
+  Bytes,
+  log,
+} from "@graphprotocol/graph-ts";
 import {
   convertToDecimal,
   createOrLoadVote,
   EMPTY_ADDRESS,
+  indexOfBytes,
   makeVoteId,
   pollIdFromVoteId,
   ZERO_BD,
@@ -38,19 +45,20 @@ class VoteBatch {
   blockNum: BigInt;
   votes: Map<string, Vote> = new Map();
   pollOpen: Map<string, boolean> = new Map();
-  touchedPolls: Array<string> = [];
+  touchedPolls: Array<Bytes> = [];
 
   constructor(blockNum: BigInt) {
     this.blockNum = blockNum;
   }
 
-  isOpen(pollId: string): boolean {
-    if (this.pollOpen.has(pollId)) {
-      return this.pollOpen.get(pollId);
+  isOpen(pollId: Bytes): boolean {
+    let key = pollId.toHex();
+    if (this.pollOpen.has(key)) {
+      return this.pollOpen.get(key);
     }
     let poll = Poll.load(pollId);
     let open = poll != null && poll.endBlock.ge(this.blockNum);
-    this.pollOpen.set(pollId, open);
+    this.pollOpen.set(key, open);
     return open;
   }
 
@@ -61,14 +69,14 @@ class VoteBatch {
     }
     this.votes.set(vote.id, vote);
     let pollId = pollIdFromVoteId(vote.id);
-    if (!this.touchedPolls.includes(pollId)) {
+    if (indexOfBytes(this.touchedPolls, pollId) < 0) {
       this.touchedPolls.push(pollId);
     }
     return vote;
   }
 
   // The voter's vote on the poll, creating a placeholder if it has none
-  getOrCreate(voter: string, pollId: string): Vote {
+  getOrCreate(voter: Bytes, pollId: Bytes): Vote {
     let id = makeVoteId(voter, pollId);
     if (this.votes.has(id)) {
       return this.votes.get(id);
@@ -77,7 +85,7 @@ class VoteBatch {
   }
 
   // The voter's vote on the poll, if one exists
-  get(voter: string, pollId: string): Vote | null {
+  get(voter: Bytes, pollId: Bytes): Vote | null {
     let id = makeVoteId(voter, pollId);
     if (this.votes.has(id)) {
       return this.votes.get(id);
@@ -90,9 +98,9 @@ class VoteBatch {
   }
 
   // Votes (including placeholders) on open polls for an account
-  openVotesOf(address: string): Array<Vote> {
+  openVotesOf(address: Bytes): Array<Vote> {
     let result = new Array<Vote>();
-    if (address == EMPTY_ADDRESS.toHex()) {
+    if (address.equals(EMPTY_ADDRESS)) {
       return result;
     }
     let account = LivepeerAccount.load(address);
@@ -139,17 +147,17 @@ function isRegistered(transcoder: Transcoder | null): boolean {
   return transcoder != null && transcoder.status == "Registered";
 }
 
-function pendingStake(delegator: string, roundId: string): BigDecimal {
+function pendingStake(delegator: Bytes, roundId: string): BigDecimal {
   let bondingManager = BondingManager.bind(
     Address.fromString(BONDING_MANAGER_ADDRESS)
   );
   let result = bondingManager.try_pendingStake(
-    Address.fromString(delegator),
+    Address.fromBytes(delegator),
     BigInt.fromString(roundId)
   );
   if (result.reverted) {
     log.warning("pendingStake reverted for {} in round {}", [
-      delegator,
+      delegator.toHex(),
       roundId,
     ]);
     return ZERO_BD;
@@ -166,9 +174,9 @@ function anyPollOpen(protocol: Protocol, blockNum: BigInt): boolean {
 export function updateVotesOnBond(
   protocol: Protocol,
   blockNum: BigInt,
-  delegatorAddress: string,
-  oldDelegateAddress: string,
-  newDelegateAddress: string,
+  delegatorAddress: Bytes,
+  oldDelegateAddress: Bytes,
+  newDelegateAddress: Bytes,
   bondedAmountRaw: BigInt,
   additionalAmountRaw: BigInt
 ): void {
@@ -182,12 +190,12 @@ export function updateVotesOnBond(
   );
   let isSwitchingDelegates =
     previousBondedAmount.gt(ZERO_BD) &&
-    oldDelegateAddress != newDelegateAddress;
+    !oldDelegateAddress.equals(newDelegateAddress);
   let oldDelegate = Transcoder.load(oldDelegateAddress);
   let newDelegate = Transcoder.load(newDelegateAddress);
 
   // The old delegate lost this stake: refresh its own votes
-  if (oldDelegateAddress != newDelegateAddress) {
+  if (!oldDelegateAddress.equals(newDelegateAddress)) {
     let oldDelegateVotes = batch.openVotesOf(oldDelegateAddress);
     for (let i = 0; i < oldDelegateVotes.length; i++) {
       let vote = oldDelegateVotes[i];
@@ -228,7 +236,7 @@ export function updateVotesOnBond(
       }
     }
 
-    if (delegatorAddress == newDelegateAddress) {
+    if (delegatorAddress.equals(newDelegateAddress)) {
       vote.delegate = null;
       continue;
     }
@@ -257,8 +265,8 @@ export function updateVotesOnUnbondOrRebond(
   protocol: Protocol,
   blockNum: BigInt,
   roundId: string,
-  delegatorAddress: string,
-  delegateAddress: string
+  delegatorAddress: Bytes,
+  delegateAddress: Bytes
 ): void {
   if (!anyPollOpen(protocol, blockNum)) {
     return;
@@ -279,10 +287,10 @@ export function updateVotesOnUnbondOrRebond(
     }
   }
 
-  if (delegatorAddress != delegateAddress) {
+  if (!delegatorAddress.equals(delegateAddress)) {
     let delegatorVotes = batch.openVotesOf(delegatorAddress);
     let stake = ZERO_BD;
-    let delegatorDelegate: string | null = null;
+    let delegatorDelegate: Bytes | null = null;
     if (delegatorVotes.length > 0) {
       stake = pendingStake(delegatorAddress, roundId);
       let delegator = Delegator.load(delegatorAddress);

@@ -31,7 +31,7 @@ export function callScheduled(event: CallScheduled): void {
   let callScheduledEvent = new TreasuryCallScheduledEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  callScheduledEvent.transaction = event.transaction.hash.toHex();
+  callScheduledEvent.transaction = event.transaction.hash;
   callScheduledEvent.timestamp = event.block.timestamp.toI32();
   callScheduledEvent.round = round.id;
   callScheduledEvent.operationId = event.params.id;
@@ -56,7 +56,7 @@ export function callExecuted(event: CallExecuted): void {
   let callExecutedEvent = new TreasuryCallExecutedEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  callExecutedEvent.transaction = event.transaction.hash.toHex();
+  callExecutedEvent.transaction = event.transaction.hash;
   callExecutedEvent.timestamp = event.block.timestamp.toI32();
   callExecutedEvent.round = round.id;
   callExecutedEvent.operationId = event.params.id;
@@ -79,7 +79,7 @@ export function cancelled(event: Cancelled): void {
   let cancelledEvent = new TreasuryOperationCancelledEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  cancelledEvent.transaction = event.transaction.hash.toHex();
+  cancelledEvent.transaction = event.transaction.hash;
   cancelledEvent.timestamp = event.block.timestamp.toI32();
   cancelledEvent.round = round.id;
   cancelledEvent.operationId = event.params.id;
@@ -98,7 +98,7 @@ export function minDelayChange(event: MinDelayChange): void {
   let minDelayChangeEvent = new TreasuryMinDelayChangeEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  minDelayChangeEvent.transaction = event.transaction.hash.toHex();
+  minDelayChangeEvent.transaction = event.transaction.hash;
   minDelayChangeEvent.timestamp = event.block.timestamp.toI32();
   minDelayChangeEvent.round = round.id;
   minDelayChangeEvent.oldDuration = event.params.oldDuration;

@@ -24,7 +24,7 @@ export function recordSetController(
   let setControllerEvent = new SetControllerEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  setControllerEvent.transaction = event.transaction.hash.toHex();
+  setControllerEvent.transaction = event.transaction.hash;
   setControllerEvent.timestamp = event.block.timestamp.toI32();
   setControllerEvent.round = round.id;
   setControllerEvent.contractAddress = event.address.toHex();

@@ -1,4 +1,10 @@
-import { BigDecimal, BigInt, ethereum, log } from "@graphprotocol/graph-ts";
+import {
+  BigDecimal,
+  BigInt,
+  Bytes,
+  ethereum,
+  log,
+} from "@graphprotocol/graph-ts";
 
 import {
   convertToDecimal,
@@ -43,7 +49,7 @@ namespace TreasuryProposalStatus {
 export function proposalCreated(event: ProposalCreated): void {
   const p = event.params;
   const proposer = createOrUpdateLivepeerAccount(
-    p.proposer.toHex(),
+    p.proposer,
     event.block.timestamp.toI32()
   );
 
@@ -67,7 +73,7 @@ export function voteCast(event: VoteCast): void {
   handleVote(
     event,
     event.params.proposalId,
-    event.params.voter.toHex(),
+    event.params.voter,
     event.params.support,
     event.params.weight,
     event.params.reason
@@ -78,7 +84,7 @@ export function voteCastWithParams(event: VoteCastWithParams): void {
   handleVote(
     event,
     event.params.proposalId,
-    event.params.voter.toHex(),
+    event.params.voter,
     event.params.support,
     event.params.weight,
     event.params.reason
@@ -88,7 +94,7 @@ export function voteCastWithParams(event: VoteCastWithParams): void {
 function handleVote(
   event: ethereum.Event,
   proposalId: BigInt,
-  voter: string,
+  voter: Bytes,
   support: i32,
   weightRaw: BigInt,
   reason: string
@@ -116,7 +122,7 @@ function handleVote(
     getBlockNum(protocol, event.block)
   );
   const transaction = createOrLoadTransactionFromEvent(event);
-  const voteId = proposal.id.concat("-").concat(voter);
+  const voteId = proposal.id.concat("-").concat(voter.toHex());
   let vote = TreasuryVote.load(voteId);
   const weight = convertToDecimal(weightRaw);
 

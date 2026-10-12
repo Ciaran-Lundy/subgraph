@@ -17,7 +17,7 @@ export function serviceURIUpdate(event: ServiceURIUpdate): void {
     getBlockNum(protocol, event.block)
   );
   let transcoder = createOrLoadTranscoder(
-    event.params.addr.toHex(),
+    event.params.addr,
     event.block.timestamp.toI32()
   );
   transcoder.serviceURI = event.params.serviceURI;
@@ -28,7 +28,7 @@ export function serviceURIUpdate(event: ServiceURIUpdate): void {
   let serviceURIUpdateEvent = new ServiceURIUpdateEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  serviceURIUpdateEvent.transaction = event.transaction.hash.toHex();
+  serviceURIUpdateEvent.transaction = event.transaction.hash;
   serviceURIUpdateEvent.timestamp = event.block.timestamp.toI32();
   serviceURIUpdateEvent.round = round.id;
   serviceURIUpdateEvent.addr = event.params.addr.toHex();

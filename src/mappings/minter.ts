@@ -45,7 +45,7 @@ export function setCurrentRewardTokens(event: SetCurrentRewardTokens): void {
   let setCurrentRewardTokensEvent = new SetCurrentRewardTokensEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  setCurrentRewardTokensEvent.transaction = event.transaction.hash.toHex();
+  setCurrentRewardTokensEvent.transaction = event.transaction.hash;
   setCurrentRewardTokensEvent.timestamp = event.block.timestamp.toI32();
   setCurrentRewardTokensEvent.round = round.id;
   setCurrentRewardTokensEvent.currentMintableTokens = convertToDecimal(
@@ -77,7 +77,7 @@ export function parameterUpdate(event: ParameterUpdate): void {
   let parameterUpdateEvent = new ParameterUpdateEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  parameterUpdateEvent.transaction = event.transaction.hash.toHex();
+  parameterUpdateEvent.transaction = event.transaction.hash;
   parameterUpdateEvent.timestamp = event.block.timestamp.toI32();
   parameterUpdateEvent.round = round.id;
   parameterUpdateEvent.param = event.params.param;

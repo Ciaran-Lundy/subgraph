@@ -59,7 +59,7 @@ export function newRound(event: NewRound): void {
   } else {
     currentTranscoder = callResult.value;
     transcoder = createOrLoadTranscoder(
-      currentTranscoder.toHex(),
+      currentTranscoder,
       event.block.timestamp.toI32()
     );
   }
@@ -116,11 +116,11 @@ export function newRound(event: NewRound): void {
     // reward() for a given round, we store its reward tokens inside this Pool
     // entry in a field called "rewardTokens". If "rewardTokens" is null for a
     // given transcoder and round then we know the transcoder failed to call reward()
-    createOrLoadPool(round.id, currentTranscoder.toHex());
+    createOrLoadPool(round.id, currentTranscoder);
 
     // Refresh the 30/60/90 day volumes so they decay for transcoders that
     // stopped earning fees
-    transcoder = Transcoder.load(currentTranscoder.toHex());
+    transcoder = Transcoder.load(currentTranscoder);
     if (transcoder) {
       updateRollingVolumes(transcoder, event.block.timestamp.toI32());
       transcoder.save();
@@ -171,7 +171,7 @@ export function newRound(event: NewRound): void {
   let newRoundEvent = new NewRoundEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  newRoundEvent.transaction = event.transaction.hash.toHex();
+  newRoundEvent.transaction = event.transaction.hash;
   newRoundEvent.timestamp = event.block.timestamp.toI32();
   newRoundEvent.round = round.id;
   newRoundEvent.blockHash = event.params.blockHash.toHexString();
@@ -218,7 +218,7 @@ export function parameterUpdate(event: ParameterUpdate): void {
   let parameterUpdateEvent = new ParameterUpdateEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  parameterUpdateEvent.transaction = event.transaction.hash.toHex();
+  parameterUpdateEvent.transaction = event.transaction.hash;
   parameterUpdateEvent.timestamp = event.block.timestamp.toI32();
   parameterUpdateEvent.round = currentRound.toString();
   parameterUpdateEvent.param = event.params.param;

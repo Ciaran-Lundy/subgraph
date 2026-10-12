@@ -71,7 +71,7 @@ Perform transcoding work for the network. The transcoders with the most delegate
 """
 type Transcoder @entity(immutable: false) {
   "Transcoder's ETH address"
-  id: ID!
+  id: Bytes!
   "Round in which the transcoder became active - 0 if inactive"
   activationRound: BigInt!
   "Round in which the transcoder will become inactive"
@@ -204,7 +204,7 @@ Bonded accounts who have delegated their stake towards a transcoder candidate
 """
 type Delegator @entity(immutable: false) {
   "ETH address of a delegator"
-  id: ID!
+  id: Bytes!
   "ETH address of the delegate (the one whom the delegator has bonded to)"
   delegate: Transcoder
   "Round the delegator becomes bonded and delegated to its delegate"
@@ -232,7 +232,7 @@ Abstraction for accounts/delegators bonded with the protocol
 """
 type LivepeerAccount @entity(immutable: false) {
   "ETH address of the bonded delegator"
-  id: ID!
+  id: Bytes!
   "The date the account was last associated with an event, beginning at 12:00am UTC"
   lastUpdatedTimestamp: Int!
   "Delegator details for this account"
@@ -248,7 +248,7 @@ Broadcasters pay transcoders to do the work of transcoding in exchange for fees
 """
 type Broadcaster @entity(immutable: false) {
   "ETH address of a broadcaster"
-  id: ID!
+  id: Bytes!
   "Amount of funds deposited"
   deposit: BigDecimal!
   "Amount of funds in reserve"
@@ -294,7 +294,7 @@ Stake weighted poll
 """
 type Poll @entity(immutable: false) {
   "Poll address"
-  id: ID!
+  id: Bytes!
   "IPFS multihash for the proposal"
   proposal: String!
   "Block at which the poll ends and votes can no longer be submitted. This is an L1 (Ethereum) block number, comparable with Round.startBlock"
@@ -314,7 +314,7 @@ Stake weighted tally associated with a poll
 """
 type PollTally @entity(immutable: false) {
   "Poll address"
-  id: ID!
+  id: Bytes!
   "Stake voted yes"
   yes: BigDecimal!
   "Stake voted no"
@@ -437,7 +437,7 @@ Transaction entities are created for each Ethereum transaction that contains an 
 """
 type Transaction @entity(immutable: true) {
   "Ethereum transaction hash"
-  id: ID!
+  id: Bytes!
   "Block transaction was mined in"
   blockNumber: BigInt!
   "Timestamp for transaction"

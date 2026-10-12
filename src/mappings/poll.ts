@@ -32,14 +32,14 @@ export function vote(event: VoteEventParam): void {
     protocol,
     getBlockNum(protocol, event.block)
   );
-  let poll = Poll.load(event.address.toHex());
+  let poll = Poll.load(event.address);
 
   if (!poll) {
     log.error("No poll found for vote", []);
     return;
   }
 
-  let voter = event.params.voter.toHex();
+  let voter = event.params.voter;
   createOrUpdateLivepeerAccount(voter, event.block.timestamp.toI32());
   let v = createOrLoadVote(voter, poll.id);
 
@@ -64,7 +64,7 @@ export function vote(event: VoteEventParam): void {
       );
 
       // If voter is a registered transcoder
-      if (voter == delegator.delegate) {
+      if (voter.equals(delegator.delegate!)) {
         v.voteStake = delegate.totalStake;
         v.registeredTranscoder = true;
       } else {
@@ -100,11 +100,11 @@ export function vote(event: VoteEventParam): void {
   let voteEvent = new VoteEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  voteEvent.transaction = event.transaction.hash.toHex();
+  voteEvent.transaction = event.transaction.hash;
   voteEvent.timestamp = event.block.timestamp.toI32();
   voteEvent.round = round.id;
   voteEvent.choiceID = event.params.choiceID;
-  voteEvent.voter = voter;
-  voteEvent.poll = event.address.toHex();
+  voteEvent.voter = voter.toHex();
+  voteEvent.poll = event.address;
   voteEvent.save();
 }

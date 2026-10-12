@@ -14,7 +14,7 @@ describe("rolling fee windows (BDR-17)", () => {
   });
 
   test("days older than the window drop out of the 30/60/90 day sums", () => {
-    let t = createOrLoadTranscoder(recipient.toHex(), 0);
+    let t = createOrLoadTranscoder(recipient, 0);
     let day = 86400;
     addRecentFeeVolume(t, 100 * day, BigDecimal.fromString("1"));
     addRecentFeeVolume(t, 140 * day, BigDecimal.fromString("2"));

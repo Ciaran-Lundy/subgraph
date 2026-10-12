@@ -57,7 +57,7 @@ export function mint(event: Mint): void {
   let mintEvent = new MintEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  mintEvent.transaction = event.transaction.hash.toHex();
+  mintEvent.transaction = event.transaction.hash;
   mintEvent.timestamp = event.block.timestamp.toI32();
   mintEvent.round = round.id;
   mintEvent.to = event.params.to.toHex();
@@ -105,7 +105,7 @@ export function burn(event: Burn): void {
   let burnEvent = new BurnEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
-  burnEvent.transaction = event.transaction.hash.toHex();
+  burnEvent.transaction = event.transaction.hash;
   burnEvent.timestamp = event.block.timestamp.toI32();
   burnEvent.round = round.id;
   burnEvent.value = value;

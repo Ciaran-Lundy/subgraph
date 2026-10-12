@@ -116,7 +116,7 @@ describe("lastActiveStakeUpdateRound (BDR-10)", () => {
   });
 
   test("moves to currentRound + 1 for an active transcoder", () => {
-    let t = createOrLoadTranscoder(transcoder1.toHex(), 0);
+    let t = createOrLoadTranscoder(transcoder1, 0);
     t.activationRound = BigInt.fromI32(5);
     t.lastActiveStakeUpdateRound = BigInt.fromI32(5);
     t.deactivationRound = MAXIMUM_VALUE_UINT256;
