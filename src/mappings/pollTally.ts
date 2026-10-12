@@ -352,10 +352,11 @@ export function updateVotesOnReward(
   batch.commit();
 }
 
+// Must run after the votes it should count have been saved: Poll.votes is
+// derived, so it is read back from the store
 export function tallyVotes(poll: Poll): void {
   let pollTally = new PollTally(poll.id);
-  let votes = poll.votes;
-  let v: Vote | null;
+  let votes = poll.votes.load();
   let nonVoteStake = ZERO_BD;
   pollTally.yes = ZERO_BD;
   pollTally.no = ZERO_BD;
@@ -363,12 +364,7 @@ export function tallyVotes(poll: Poll): void {
   pollTally.totalNonVoteStake = ZERO_BD;
 
   for (let i = 0; i < votes.length; i++) {
-    v = Vote.load(votes[i]);
-
-    if (!v) {
-      log.error("No vote found for poll tally", []);
-      return;
-    }
+    let v = votes[i];
 
     // Only subtract nonVoteStake if delegate was registered during poll period
     nonVoteStake = v.registeredTranscoder ? v.nonVoteStake : ZERO_BD;

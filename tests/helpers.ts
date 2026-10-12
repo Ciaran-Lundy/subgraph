@@ -17,11 +17,6 @@ import {
   Unbond,
   Rebond,
 } from "../src/types/BondingManager/BondingManager";
-import {
-  ReserveClaimed,
-  WinningTicketRedeemed,
-  WinningTicketTransfer,
-} from "../src/types/TicketBroker/TicketBroker";
 
 export const ROUND_LENGTH = 100;
 // L1 block number returned by RoundsManager.blockNum(): round 10
@@ -194,55 +189,5 @@ export function createTranscoderUpdate(
   event.parameters.push(param("transcoder", address(transcoder)));
   event.parameters.push(param("rewardCut", ethereum.Value.fromI32(rewardCut)));
   event.parameters.push(param("feeShare", ethereum.Value.fromI32(feeShare)));
-  return event;
-}
-
-export const ticketBroker = Address.fromString(
-  "0xa8bB618B1520E284046F3dFc448851A1Ff26e41B"
-);
-
-export function createReserveClaimed(
-  reserveHolder: Address,
-  claimant: Address,
-  amount: BigInt,
-  logIndex: i32,
-  txHash: string
-): ReserveClaimed {
-  let event = prepare(changetype<ReserveClaimed>(newMockEvent()), ticketBroker, logIndex, txHash);
-  event.parameters.push(param("reserveHolder", address(reserveHolder)));
-  event.parameters.push(param("claimant", address(claimant)));
-  event.parameters.push(param("amount", uint(amount)));
-  return event;
-}
-
-export function createWinningTicketTransfer(
-  sender: Address,
-  recipient: Address,
-  amount: BigInt,
-  logIndex: i32,
-  txHash: string
-): WinningTicketTransfer {
-  let event = prepare(changetype<WinningTicketTransfer>(newMockEvent()), ticketBroker, logIndex, txHash);
-  event.parameters.push(param("sender", address(sender)));
-  event.parameters.push(param("recipient", address(recipient)));
-  event.parameters.push(param("amount", uint(amount)));
-  return event;
-}
-
-export function createWinningTicketRedeemed(
-  sender: Address,
-  recipient: Address,
-  faceValue: BigInt,
-  logIndex: i32,
-  txHash: string
-): WinningTicketRedeemed {
-  let event = prepare(changetype<WinningTicketRedeemed>(newMockEvent()), ticketBroker, logIndex, txHash);
-  event.parameters.push(param("sender", address(sender)));
-  event.parameters.push(param("recipient", address(recipient)));
-  event.parameters.push(param("faceValue", uint(faceValue)));
-  event.parameters.push(param("winProb", ethereum.Value.fromI32(1)));
-  event.parameters.push(param("senderNonce", ethereum.Value.fromI32(1)));
-  event.parameters.push(param("recipientRand", ethereum.Value.fromI32(1)));
-  event.parameters.push(param("auxData", ethereum.Value.fromBytes(Bytes.empty())));
   return event;
 }

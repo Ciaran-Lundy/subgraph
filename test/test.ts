@@ -209,7 +209,8 @@ describe("Token contract", function () {
       recipient: { address: string },
       sender: { address: string },
       recipientRand: number,
-      faceValue: BigNumberish = 0
+      faceValue: BigNumberish = 0,
+      senderNonce: number = 0
     ) => {
       const recipientRandHash = ethers.utils.keccak256(
         ethers.utils.defaultAbiCoder.encode(["uint256"], [recipientRand])
@@ -224,7 +225,7 @@ describe("Token contract", function () {
         sender: sender.address,
         faceValue,
         winProb: constants.MaxUint256.toString(),
-        senderNonce: 0,
+        senderNonce,
         recipientRandHash,
         auxData: ethers.utils.defaultAbiCoder.encode(
           ["uint256", "bytes32"],
@@ -483,6 +484,76 @@ describe("Token contract", function () {
       expect(transcoder.lastFeeRound.id).to.equal(
         (await RoundsManager.currentRound()).toString()
       );
+
+      // Rolling window and daily aggregation (current, partial day)
+      const stats = await fetchSubgraph({
+        query: `{
+          transcoder(id: "${transcoder1.address.toLowerCase()}") { thirtyDayVolumeETH }
+          transcoderFeeDays(interval: "day", current: include, where: { transcoder: "${transcoder1.address.toLowerCase()}" }) {
+            volumeETH
+            winningTicketCount
+          }
+          protocolDays(interval: "day", current: include) { volumeETH }
+        }`,
+      });
+      expect(toWei(stats.data.transcoder.thirtyDayVolumeETH)).to.deep.equal(
+        faceValue
+      );
+      expect(stats.data.transcoderFeeDays).to.have.length(1);
+      expect(toWei(stats.data.transcoderFeeDays[0].volumeETH)).to.deep.equal(
+        faceValue
+      );
+      expect(stats.data.transcoderFeeDays[0].winningTicketCount).to.equal("1");
+      expect(
+        toWei(stats.data.protocolDays[0].volumeETH)
+      ).to.deep.equal(faceValue);
+    });
+
+    it("charges a deposit shortfall to the reserve once, capped at the recipient's allocation", async () => {
+      // 0.8 ETH deposit left; the 1 ETH reserve is split between the two
+      // active transcoders, so at most 0.5 ETH can be claimed from it
+      const faceValue = ethers.utils.parseEther("1.5");
+      await ensureRoundInitialized();
+      const ticket = await createWinningTicket(
+        transcoder1,
+        ticketSender,
+        2,
+        faceValue,
+        1
+      );
+      const signedTicketHash = await ticketSender.signMessage(
+        ethers.utils.arrayify(ticketHash(ticket))
+      );
+      await send(
+        TicketBroker.connect(transcoder1).redeemWinningTicket(
+          ticket,
+          signedTicketHash,
+          2,
+          defaults
+        )
+      );
+      await waitForSync();
+
+      const info = await TicketBroker.getSenderInfo(ticketSender.address);
+      const result = await fetchSubgraph({
+        query: `{
+          broadcaster(id: "${ticketSender.address.toLowerCase()}") {
+            deposit
+            reserve
+            totalVolumeETH
+          }
+        }`,
+      });
+      const b = result.data.broadcaster;
+      expect(toWei(b.deposit)).to.deep.equal(info.sender.deposit);
+      expect(toWei(b.reserve)).to.deep.equal(info.reserve.fundsRemaining);
+      // The claim was capped, so less than faceValue was transferred
+      const claimed = ONE_ETHER.sub(info.reserve.fundsRemaining);
+      const transferred = ethers.utils.parseEther("0.8").add(claimed);
+      expect(transferred.lt(faceValue)).to.equal(true);
+      expect(toWei(b.totalVolumeETH)).to.deep.equal(
+        ethers.utils.parseEther("0.2").add(transferred)
+      );
     });
 
     it("counts bonded delegators and moves lastActiveStakeUpdateRound", async () => {
@@ -541,12 +612,12 @@ describe("Token contract", function () {
       await waitForSync();
 
       const result = await fetchSubgraph({
-        query: `{ votes(where: { poll: "${pollAddress.toLowerCase()}" }) { voter choiceID } }`,
+        query: `{ votes(where: { poll: "${pollAddress.toLowerCase()}" }) { voter { id } choiceID } }`,
       });
       const choices = ["Yes", "No"];
       const indexed = {};
       for (const v of result.data.votes) {
-        indexed[v.voter] = v.choiceID;
+        indexed[v.voter.id] = v.choiceID;
       }
       for (const voter of Object.keys(votes)) {
         expect(indexed[voter]).to.equal(choices[votes[voter]]);

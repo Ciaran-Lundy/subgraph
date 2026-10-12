@@ -1,12 +1,12 @@
 import { Address, log } from "@graphprotocol/graph-ts";
 import {
   convertToDecimal,
-  createOrLoadDay,
   createOrLoadProtocol,
   createOrLoadRound,
   createOrLoadTransactionFromEvent,
   getBlockNum,
   makeEventId,
+  recordProtocolDataPoint,
   ZERO_BD,
 } from "../../utils/helpers";
 import { MINTER_ADDRESS } from "../../utils/addresses";
@@ -16,7 +16,6 @@ import { BurnEvent, MintEvent } from "../types/schema";
 
 export function mint(event: Mint): void {
   let protocol = createOrLoadProtocol();
-  let day = createOrLoadDay(event.block.timestamp.toI32());
   let amount = convertToDecimal(event.params.amount);
   let minter = Minter.bind(Address.fromString(MINTER_ADDRESS));
   let callResult = minter.try_getGlobalTotalSupply();
@@ -34,13 +33,9 @@ export function mint(event: Mint): void {
 
   protocol.totalSupply = totalSupply;
 
-  day.totalSupply = totalSupply;
-  day.totalActiveStake = protocol.totalActiveStake;
-
   // check both operands are greater than 0 to avoid divide by zero
   if (protocol.totalActiveStake.gt(ZERO_BD) && totalSupply.gt(ZERO_BD)) {
     protocol.participationRate = protocol.totalActiveStake.div(totalSupply);
-    day.participationRate = protocol.participationRate;
   }
 
   let round = createOrLoadRound(
@@ -55,7 +50,7 @@ export function mint(event: Mint): void {
   round.save();
 
   protocol.save();
-  day.save();
+  recordProtocolDataPoint(protocol, event.block, ZERO_BD, ZERO_BD);
 
   createOrLoadTransactionFromEvent(event);
 
@@ -76,7 +71,6 @@ export function burn(event: Burn): void {
     protocol,
     getBlockNum(protocol, event.block)
   );
-  let day = createOrLoadDay(event.block.timestamp.toI32());
   let value = convertToDecimal(event.params.value);
   let minter = Minter.bind(Address.fromString(MINTER_ADDRESS));
 
@@ -95,12 +89,8 @@ export function burn(event: Burn): void {
 
   protocol.totalSupply = totalSupply;
 
-  day.totalSupply = totalSupply;
-  day.totalActiveStake = protocol.totalActiveStake;
-
   if (protocol.totalActiveStake.gt(ZERO_BD) && totalSupply.gt(ZERO_BD)) {
     protocol.participationRate = protocol.totalActiveStake.div(totalSupply);
-    day.participationRate = protocol.participationRate;
   }
 
   round.totalSupply = totalSupply;
@@ -108,7 +98,7 @@ export function burn(event: Burn): void {
   round.save();
 
   protocol.save();
-  day.save();
+  recordProtocolDataPoint(protocol, event.block, ZERO_BD, ZERO_BD);
 
   createOrLoadTransactionFromEvent(event);
 

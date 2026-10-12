@@ -52,13 +52,8 @@ export function vote(event: VoteEventParam): void {
   }
 
   if (firstTimeVoter) {
+    // Setting poll is what adds the vote to Poll.votes (@derivedFrom)
     v.poll = poll.id;
-
-    // add vote to poll
-    let pollVotes = poll.votes;
-    pollVotes.push(v.id);
-    poll.votes = pollVotes;
-    poll.save();
 
     // if voter is a delegator
     let delegator = Delegator.load(voter);

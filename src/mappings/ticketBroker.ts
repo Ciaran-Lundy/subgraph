@@ -1,23 +1,24 @@
 import { BigInt } from "@graphprotocol/graph-ts";
 import {
+  addRecentFeeVolume,
   convertToDecimal,
   createOrLoadBroadcaster,
-  createOrLoadBroadcasterDay,
-  createOrLoadDay,
   createOrLoadPool,
   createOrLoadProtocol,
   createOrLoadRound,
   createOrLoadTransactionFromEvent,
   createOrLoadTranscoder,
-  createOrLoadTranscoderDay,
   getBlockNum,
   getEthPriceUsd,
   makeEventId,
   ONE_BI,
+  recordProtocolDataPoint,
+  timeseriesTimestamp,
   ZERO_BD,
 } from "../../utils/helpers";
 import {
   DepositFundedEvent,
+  FeeDataPoint,
   ParameterUpdateEvent,
   UnlockCancelledEvent,
   UnlockEvent,
@@ -48,7 +49,6 @@ export function winningTicketRedeemed(event: WinningTicketRedeemed): void {
     getBlockNum(protocol, event.block)
   );
   let timestamp = event.block.timestamp.toI32();
-  let day = createOrLoadDay(timestamp);
   let winningTicketRedeemedEvent = new WinningTicketRedeemedEvent(
     makeEventId(event.transaction.hash, event.logIndex)
   );
@@ -100,21 +100,7 @@ export function winningTicketRedeemed(event: WinningTicketRedeemed): void {
 
   broadcaster.totalVolumeETH = broadcaster.totalVolumeETH.plus(amount);
   broadcaster.totalVolumeUSD = broadcaster.totalVolumeUSD.plus(amountUSD);
-  
-  let broadcasterDay = createOrLoadBroadcasterDay(
-    timestamp,
-    event.params.sender.toHex()
-  );
-  broadcaster.lastFundedDay = broadcasterDay.date;
-  broadcaster.lastActiveDay = broadcasterDay.date;
-  broadcasterDay.volumeETH = broadcasterDay.volumeETH.plus(amount);
-  broadcasterDay.volumeUSD = broadcasterDay.volumeUSD.plus(amountUSD);
-  broadcasterDay.save();
-  let broadcasterDays = broadcaster.broadcasterDays;
-  if (!broadcasterDays.includes(broadcasterDay.id)) {
-    broadcasterDays.unshift(broadcasterDay.id);
-    broadcaster.broadcasterDays = broadcasterDays;
-  }
+  broadcaster.lastFundedDay = (timestamp / 86400) * 86400;
   broadcaster.save();
 
   // Update transcoder's fee volume
@@ -134,13 +120,6 @@ export function winningTicketRedeemed(event: WinningTicketRedeemed): void {
   protocol.totalVolumeETH = protocol.totalVolumeETH.plus(amount);
   protocol.totalVolumeUSD = protocol.totalVolumeUSD.plus(amountUSD);
 
-  // Track active broadcasters based on ticket activity.
-  let activeBroadcasters = protocol.activeBroadcasters;
-  if (!activeBroadcasters.includes(broadcaster.id)) {
-    activeBroadcasters.push(broadcaster.id);
-    protocol.activeBroadcasters = activeBroadcasters;
-  }
-
   protocol.winningTicketCount = protocol.winningTicketCount + 1;
   protocol.save();
 
@@ -149,26 +128,19 @@ export function winningTicketRedeemed(event: WinningTicketRedeemed): void {
   pool.fees = pool.fees.plus(amount);
   pool.save();
 
-  day.totalSupply = protocol.totalSupply;
-  day.totalActiveStake = protocol.totalActiveStake;
-  day.participationRate = protocol.participationRate;
-  day.volumeETH = day.volumeETH.plus(amount);
-  day.volumeUSD = day.volumeUSD.plus(amountUSD);
-  day.save();
+  recordProtocolDataPoint(protocol, event.block, amount, amountUSD);
 
-  let transcoderDay = createOrLoadTranscoderDay(
-    timestamp,
-    event.params.recipient.toHex()
-  );
-  transcoderDay.volumeETH = transcoderDay.volumeETH.plus(amount);
-  transcoderDay.volumeUSD = transcoderDay.volumeUSD.plus(amountUSD);
-  transcoderDay.save();
+  if (amount.gt(ZERO_BD)) {
+    addRecentFeeVolume(transcoder, timestamp, amount);
 
-  // Manually manage the array of transcoder days (add newest to the beginning of the list)
-  let transcoderDays = transcoder.transcoderDays;
-  if (!transcoderDays.includes(transcoderDay.id)) {
-    transcoderDays.unshift(transcoderDay.id);
-    transcoder.transcoderDays = transcoderDays;
+    // graph-node assigns the id and overwrites the timestamp
+    let feeDataPoint = new FeeDataPoint(0);
+    feeDataPoint.timestamp = timeseriesTimestamp(event.block);
+    feeDataPoint.transcoder = transcoder.id;
+    feeDataPoint.broadcaster = broadcaster.id;
+    feeDataPoint.volumeETH = amount;
+    feeDataPoint.volumeUSD = amountUSD;
+    feeDataPoint.save();
   }
   transcoder.save();
 
@@ -216,7 +188,6 @@ export function depositFunded(event: DepositFunded): void {
   if (broadcaster.firstFundedDay == 0) {
     const startOfDay = (timestamp / 86400) * 86400;
     broadcaster.firstFundedDay = startOfDay;
-    broadcaster.firstActiveDay = startOfDay;
   }
 
   broadcaster.deposit = broadcaster.deposit.plus(
@@ -250,7 +221,6 @@ export function reserveFunded(event: ReserveFunded): void {
   if (broadcaster.firstFundedDay == 0) {
     const startOfDay = (timestamp / 86400) * 86400;
     broadcaster.firstFundedDay = startOfDay;
-    broadcaster.firstActiveDay = startOfDay;
   }
 
   broadcaster.reserve = broadcaster.reserve.plus(

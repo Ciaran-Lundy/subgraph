@@ -22,7 +22,6 @@ export function pollCreated(event: PollCreated): void {
   poll.endBlock = event.params.endBlock;
   poll.quorum = event.params.quorum;
   poll.quota = event.params.quota;
-  poll.votes = [];
   poll.save();
 
   if (event.params.endBlock.gt(protocol.latestPollEndBlock)) {

@@ -13,6 +13,7 @@ import {
   makeEventId,
   makeUnbondingLockId,
   MAXIMUM_VALUE_UINT256,
+  timeseriesTimestamp,
   ONE_BI,
   updateDelegatorCounts,
   ZERO_BD,
@@ -40,6 +41,7 @@ import {
 } from "../types/BondingManager/BondingManager";
 import {
   BondEvent,
+  DelegatorRoundSnapshot,
   Transcoder,
   EarningsClaimedEvent,
   ParameterUpdateEvent,
@@ -848,6 +850,16 @@ export function earningsClaimed(event: EarningsClaimed): void {
   earningsClaimedEvent.rewardTokens = convertToDecimal(event.params.rewards);
   earningsClaimedEvent.fees = convertToDecimal(event.params.fees);
   earningsClaimedEvent.save();
+  // graph-node assigns the id and overwrites the timestamp
+  let snapshot = new DelegatorRoundSnapshot(0);
+  snapshot.timestamp = timeseriesTimestamp(event.block);
+  snapshot.delegator = delegator.id;
+  snapshot.delegate = event.params.delegate.toHex();
+  snapshot.round = event.params.endRound;
+  snapshot.bondedAmount = delegator.bondedAmount;
+  snapshot.rewardTokens = earningsClaimedEvent.rewardTokens;
+  snapshot.fees = earningsClaimedEvent.fees;
+  snapshot.save();
 }
 
 // Mirrors BondingManager.increaseTotalStake()/decreaseTotalStake(), which move

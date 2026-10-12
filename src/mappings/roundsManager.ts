@@ -1,7 +1,6 @@
 import { Address, BigDecimal, BigInt, log } from "@graphprotocol/graph-ts";
 import {
   convertToDecimal,
-  createOrLoadDay,
   createOrLoadPool,
   createOrLoadProtocol,
   createOrLoadRound,
@@ -11,12 +10,13 @@ import {
   EMPTY_ADDRESS,
   getBlockNum,
   getLptPriceEth,
-  getTimestampForDaysPast,
   makeEventId,
   ONE_BD,
   ONE_BI,
   PERC_DIVISOR,
   ZERO_BD,
+  recordProtocolDataPoint,
+  updateRollingVolumes,
   ZERO_BI,
 } from "../../utils/helpers";
 import { BONDING_MANAGER_ADDRESS } from "../../utils/addresses";
@@ -29,12 +29,9 @@ import {
 } from "../types/RoundsManager/RoundsManager";
 // Import entity types generated from the GraphQL schema
 import {
-  Broadcaster,
-  BroadcasterDay,
   NewRoundEvent,
   ParameterUpdateEvent,
   Transcoder,
-  TranscoderDay,
 } from "../types/schema";
 
 // Handler for NewRound events
@@ -47,7 +44,6 @@ export function newRound(event: NewRound): void {
     protocol,
     getBlockNum(protocol, event.block)
   );
-  let day = createOrLoadDay(event.block.timestamp.toI32());
   let currentTranscoder = EMPTY_ADDRESS;
   let totalActiveStake = protocol.totalActiveStake;
   let transcoder: Transcoder | null = null;
@@ -114,19 +110,6 @@ export function newRound(event: NewRound): void {
     protocol.pendingDeactivation = [];
   }
 
-  let thirtyDayTimestamp = getTimestampForDaysPast(
-    event.block.timestamp.toI32(),
-    30
-  );
-  let sixtyDayTimestamp = getTimestampForDaysPast(
-    event.block.timestamp.toI32(),
-    60
-  );
-  let ninetyDayTimestamp = getTimestampForDaysPast(
-    event.block.timestamp.toI32(),
-    90
-  );
-
   // Iterate over all active transcoders
   while (EMPTY_ADDRESS.toHex() != currentTranscoder.toHex()) {
     // create a unique "pool" for each active transcoder. If a transcoder calls
@@ -134,6 +117,14 @@ export function newRound(event: NewRound): void {
     // entry in a field called "rewardTokens". If "rewardTokens" is null for a
     // given transcoder and round then we know the transcoder failed to call reward()
     createOrLoadPool(round.id, currentTranscoder.toHex());
+
+    // Refresh the 30/60/90 day volumes so they decay for transcoders that
+    // stopped earning fees
+    transcoder = Transcoder.load(currentTranscoder.toHex());
+    if (transcoder) {
+      updateRollingVolumes(transcoder, event.block.timestamp.toI32());
+      transcoder.save();
+    }
 
     let nextResult = bondingManager.try_getNextTranscoderInPool(
       currentTranscoder
@@ -146,96 +137,7 @@ export function newRound(event: NewRound): void {
       break;
     }
     currentTranscoder = nextResult.value;
-
-    transcoder = Transcoder.load(currentTranscoder.toHex());
-
-    if (transcoder) {
-      // --- Get the 30, 60, 90 day sums of volume ---
-      let thirtyDaySum = ZERO_BD;
-      let sixtyDaySum = ZERO_BD;
-      let ninetyDaySum = ZERO_BD;
-
-      // capped at <90 - transcoder days are ordered newest first
-      let daysLength =
-        transcoder.transcoderDays.length > 90
-          ? 90
-          : transcoder.transcoderDays.length;
-      for (let i = 0; i < daysLength; i++) {
-        let transcoderDay = TranscoderDay.load(transcoder.transcoderDays[i]);
-
-        if (transcoderDay) {
-          if (transcoderDay.date >= thirtyDayTimestamp) {
-            thirtyDaySum = thirtyDaySum.plus(transcoderDay.volumeETH);
-          }
-          if (transcoderDay.date >= sixtyDayTimestamp) {
-            sixtyDaySum = sixtyDaySum.plus(transcoderDay.volumeETH);
-          }
-          if (transcoderDay.date >= ninetyDayTimestamp) {
-            ninetyDaySum = ninetyDaySum.plus(transcoderDay.volumeETH);
-          }
-        }
-      }
-
-      transcoder.thirtyDayVolumeETH = thirtyDaySum;
-      transcoder.sixtyDayVolumeETH = sixtyDaySum;
-      transcoder.ninetyDayVolumeETH = ninetyDaySum;
-
-      transcoder.save();
-    }
   }
-
-  // Update rolling fee windows for tracked broadcasters (gateways)
-  let trackedBroadcasters = protocol.activeBroadcasters;
-  let activeBroadcasters: string[] = [];
-  if (trackedBroadcasters.length) {
-    for (let i = 0; i < trackedBroadcasters.length; i++) {
-      let broadcaster = Broadcaster.load(trackedBroadcasters[i]);
-
-      if (broadcaster) {
-        // --- Get the 30, 60, 90 day sums of volume ---
-        let broadcasterThirtyDaySum = ZERO_BD;
-        let broadcasterSixtyDaySum = ZERO_BD;
-        let broadcasterNinetyDaySum = ZERO_BD;
-
-        // capped at <90 - broadcaster days are ordered newest first
-        let broadcasterDays = broadcaster.broadcasterDays;
-        let broadcasterDaysLength =
-          broadcasterDays.length > 90 ? 90 : broadcasterDays.length;
-        for (let j = 0; j < broadcasterDaysLength; j++) {
-          let broadcasterDay = BroadcasterDay.load(broadcasterDays[j]);
-
-          if (broadcasterDay) {
-            if (broadcasterDay.date >= thirtyDayTimestamp) {
-              broadcasterThirtyDaySum = broadcasterThirtyDaySum.plus(
-                broadcasterDay.volumeETH
-              );
-            }
-            if (broadcasterDay.date >= sixtyDayTimestamp) {
-              broadcasterSixtyDaySum = broadcasterSixtyDaySum.plus(
-                broadcasterDay.volumeETH
-              );
-            }
-            if (broadcasterDay.date >= ninetyDayTimestamp) {
-              broadcasterNinetyDaySum = broadcasterNinetyDaySum.plus(
-                broadcasterDay.volumeETH
-              );
-            }
-          }
-        }
-
-        broadcaster.thirtyDayVolumeETH = broadcasterThirtyDaySum;
-        broadcaster.sixtyDayVolumeETH = broadcasterSixtyDaySum;
-        broadcaster.ninetyDayVolumeETH = broadcasterNinetyDaySum;
-        broadcaster.save();
-
-        if (broadcaster.lastFundedDay >= ninetyDayTimestamp) {
-          activeBroadcasters.push(broadcaster.id);
-        }
-      }
-    }
-  }
-
-  protocol.activeBroadcasters = activeBroadcasters;
 
   // Keep the previous round's price if it could not be read
   let lptPriceEth = getLptPriceEth();
@@ -245,9 +147,6 @@ export function newRound(event: NewRound): void {
   protocol.lastInitializedRound = round.id;
   protocol.totalActiveStake = totalActiveStake;
   protocol.currentRound = round.id;
-
-  day.totalActiveStake = totalActiveStake;
-  day.totalSupply = protocol.totalSupply;
 
   if (
     protocol.totalActiveStake.gt(ZERO_BD) &&
@@ -261,17 +160,11 @@ export function newRound(event: NewRound): void {
     round.inflation = protocol.inflation;
     round.numActiveTranscoders = protocol.numActiveTranscoders;
     round.activeTranscoderCount = protocol.activeTranscoderCount;
-
-    day.participationRate = protocol.participationRate;
-    day.delegatorsCount = protocol.delegatorsCount;
-    day.inflation = protocol.inflation;
-    day.numActiveTranscoders = protocol.numActiveTranscoders;
-    day.activeTranscoderCount = protocol.activeTranscoderCount;
   }
 
   protocol.save();
-  day.save();
   round.save();
+  recordProtocolDataPoint(protocol, event.block, ZERO_BD, ZERO_BD);
 
   createOrLoadTransactionFromEvent(event);
 

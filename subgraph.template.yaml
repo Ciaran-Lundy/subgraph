@@ -45,6 +45,7 @@ dataSources:
           - Delegator
           - LivepeerAccount
           - EarningsClaimedEvent
+          - DelegatorRoundSnapshot
           - ParameterUpdateEvent
           - Pool
           - Protocol
@@ -225,7 +226,7 @@ dataSources:
         - name: UniswapV3Pool
           file: ./abis/UniswapV3Pool.json
       entities:
-        - Day
+        - ProtocolDataPoint
         - NewRoundEvent
         - ParameterUpdateEvent
         - Pool
@@ -367,7 +368,8 @@ dataSources:
           file: ./abis/RoundsManager.json
       entities:
         - Transaction
-        - Day
+        - ProtocolDataPoint
+        - FeeDataPoint
         - Protocol
         - Transcoder
         - Broadcaster
@@ -607,7 +609,7 @@ dataSources:
         - Transaction
         - MintEvent
         - BurnEvent
-        - Day
+        - ProtocolDataPoint
         - Protocol
         - Round
       eventHandlers:

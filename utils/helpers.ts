@@ -9,16 +9,14 @@ import {
 import { RoundsManager } from "../src/types/RoundsManager/RoundsManager";
 import {
   Broadcaster,
-  BroadcasterDay,
-  Day,
   Delegator,
   LivepeerAccount,
   Pool,
   Protocol,
+  ProtocolDataPoint,
   Round,
   Transaction,
   Transcoder,
-  TranscoderDay,
   Vote,
 } from "../src/types/schema";
 import { UniswapV3Pool } from "../src/types/TicketBroker/UniswapV3Pool";
@@ -199,7 +197,6 @@ export function createOrLoadProtocol(): Protocol {
     protocol.ethPriceCachedAtBlock = ZERO_BI;
     protocol.l1BlockNum = ZERO_BI;
     protocol.l1BlockCachedAtL2Block = ZERO_BI;
-    protocol.activeBroadcasters = [];
     protocol.latestPollEndBlock = ZERO_BI;
 
     // Counted exactly from bonded-state transitions (see updateDelegatorCounts)
@@ -222,14 +219,8 @@ export function createOrLoadBroadcaster(id: string): Broadcaster {
     broadcaster.reserve = ZERO_BD;
     broadcaster.totalVolumeETH = ZERO_BD;
     broadcaster.totalVolumeUSD = ZERO_BD;
-    broadcaster.thirtyDayVolumeETH = ZERO_BD;
-    broadcaster.sixtyDayVolumeETH = ZERO_BD;
-    broadcaster.ninetyDayVolumeETH = ZERO_BD;
     broadcaster.firstFundedDay = 0;
-    broadcaster.firstActiveDay = 0;
     broadcaster.lastFundedDay = 0;
-    broadcaster.lastActiveDay = 0;
-    broadcaster.broadcasterDays = [];
     broadcaster.isUnlocked = false;
 
     broadcaster.save();
@@ -247,7 +238,6 @@ export function createOrLoadVote(voter: string, pollId: string): Vote {
   if (vote == null) {
     vote = new Vote(id);
     vote.voter = voter;
-    vote.account = voter;
     vote.voteStake = ZERO_BD;
     vote.nonVoteStake = ZERO_BD;
 
@@ -283,7 +273,8 @@ export function createOrLoadTranscoder(id: string, timestamp: i32): Transcoder {
     transcoder.thirtyDayVolumeETH = ZERO_BD;
     transcoder.sixtyDayVolumeETH = ZERO_BD;
     transcoder.ninetyDayVolumeETH = ZERO_BD;
-    transcoder.transcoderDays = [];
+    transcoder.recentFeeDays = [];
+    transcoder.recentDailyVolumeETH = [];
     transcoder.delegatorCount = ZERO_BI;
     transcoder.save();
   }
@@ -363,77 +354,95 @@ export function createOrUpdateLivepeerAccount(id: string, timestamp: i32): Livep
   return account;
 }
 
-export function createOrLoadDay(timestamp: i32): Day {
-  let dayID = timestamp / 86400;
-  let dayStartTimestamp = dayID * 86400;
-  let day = Day.load(dayID.toString());
-
-  if (day == null) {
-    day = new Day(dayID.toString());
-    day.date = dayStartTimestamp;
-    day.volumeUSD = ZERO_BD;
-    day.volumeETH = ZERO_BD;
-    day.totalSupply = ZERO_BD;
-    day.totalActiveStake = ZERO_BD;
-    day.participationRate = ZERO_BD;
-    day.delegatorsCount = ZERO_BI;
-    day.numActiveTranscoders = ZERO_BI;
-    day.activeTranscoderCount = ZERO_BI;
-    day.inflation = ZERO_BI;
-
-    day.save();
-  }
-  return day;
+// Record the protocol's current state in the ProtocolDataPoint time series,
+// which DailyProtocolStats aggregates per day
+export function recordProtocolDataPoint(
+  protocol: Protocol,
+  block: ethereum.Block,
+  volumeETH: BigDecimal,
+  volumeUSD: BigDecimal
+): void {
+  // graph-node assigns the id and overwrites the timestamp with the block's
+  let point = new ProtocolDataPoint(0);
+  point.timestamp = timeseriesTimestamp(block);
+  point.volumeETH = volumeETH;
+  point.volumeUSD = volumeUSD;
+  point.totalActiveStake = protocol.totalActiveStake;
+  point.totalSupply = protocol.totalSupply;
+  point.participationRate = protocol.participationRate;
+  point.inflation = protocol.inflation;
+  point.numActiveTranscoders = protocol.numActiveTranscoders;
+  point.activeTranscoderCount = protocol.activeTranscoderCount;
+  point.delegatorsCount = protocol.delegatorsCount;
+  point.save();
 }
 
-export function createOrLoadTranscoderDay(
+// Timeseries timestamps are microseconds since the epoch
+export function timeseriesTimestamp(block: ethereum.Block): i64 {
+  return block.timestamp.toI64() * 1000000;
+}
+
+let ROLLING_WINDOW_DAYS = 90;
+
+// Add fees to the transcoder's bounded daily history (newest first, at most
+// 90 days), which backs the 30/60/90 day volume fields
+export function addRecentFeeVolume(
+  transcoder: Transcoder,
   timestamp: i32,
-  transcoderAddress: string
-): TranscoderDay {
-  let dayID = timestamp / 86400;
-  let dayStartTimestamp = dayID * 86400;
-  let transcoderDayID = transcoderAddress
-    .concat("-")
-    .concat(BigInt.fromI32(dayID).toString());
-  let transcoderDay = TranscoderDay.load(transcoderDayID);
-
-  if (transcoderDay == null) {
-    transcoderDay = new TranscoderDay(transcoderDayID);
-    transcoderDay.date = dayStartTimestamp;
-    transcoderDay.transcoder = transcoderAddress;
-    transcoderDay.volumeUSD = ZERO_BD;
-    transcoderDay.volumeETH = ZERO_BD;
-
-    transcoderDay.save();
+  amount: BigDecimal
+): void {
+  let today = timestamp / 86400;
+  let days = transcoder.recentFeeDays;
+  let volumes = transcoder.recentDailyVolumeETH;
+  if (days.length > 0 && days[0] == today) {
+    volumes[0] = volumes[0].plus(amount);
+  } else {
+    days.unshift(today);
+    volumes.unshift(amount);
   }
-  return transcoderDay;
+  transcoder.recentFeeDays = days;
+  transcoder.recentDailyVolumeETH = volumes;
+  updateRollingVolumes(transcoder, timestamp);
 }
 
-export function createOrLoadBroadcasterDay(
-  timestamp: i32,
-  broadcasterAddress: string
-): BroadcasterDay {
-  let dayID = timestamp / 86400;
-  let dayStartTimestamp = dayID * 86400;
-  let broadcasterDayID = broadcasterAddress
-    .concat("-")
-    .concat(BigInt.fromI32(dayID).toString());
-  let broadcasterDay = BroadcasterDay.load(broadcasterDayID);
+// Recompute the 30/60/90 day volume fields as of `timestamp` and drop days
+// older than the window
+export function updateRollingVolumes(
+  transcoder: Transcoder,
+  timestamp: i32
+): void {
+  let today = timestamp / 86400;
+  let days = transcoder.recentFeeDays;
+  let volumes = transcoder.recentDailyVolumeETH;
+  let keptDays = new Array<i32>();
+  let keptVolumes = new Array<BigDecimal>();
+  let thirty = ZERO_BD;
+  let sixty = ZERO_BD;
+  let ninety = ZERO_BD;
 
-  if (broadcasterDay == null) {
-    broadcasterDay = new BroadcasterDay(broadcasterDayID);
-    broadcasterDay.date = dayStartTimestamp;
-    broadcasterDay.broadcaster = broadcasterAddress;
-    broadcasterDay.volumeUSD = ZERO_BD;
-    broadcasterDay.volumeETH = ZERO_BD;
-
-    broadcasterDay.save();
+  for (let i = 0; i < days.length; i++) {
+    let age = today - days[i];
+    if (age >= ROLLING_WINDOW_DAYS) {
+      break;
+    }
+    keptDays.push(days[i]);
+    keptVolumes.push(volumes[i]);
+    ninety = ninety.plus(volumes[i]);
+    if (age < 60) {
+      sixty = sixty.plus(volumes[i]);
+    }
+    if (age < 30) {
+      thirty = thirty.plus(volumes[i]);
+    }
   }
-  return broadcasterDay;
+
+  transcoder.recentFeeDays = keptDays;
+  transcoder.recentDailyVolumeETH = keptVolumes;
+  transcoder.thirtyDayVolumeETH = thirty;
+  transcoder.sixtyDayVolumeETH = sixty;
+  transcoder.ninetyDayVolumeETH = ninety;
 }
 
-// `protocol` must be the caller's own Protocol instance: this function updates
-// and saves it when it creates a new round.
 export function createOrLoadRound(
   protocol: Protocol,
   blockNumber: BigInt
@@ -494,10 +503,6 @@ export function createRound(
 
   round.save();
   return round;
-}
-
-export function getTimestampForDaysPast(currentTimestamp: i32, days: i32): i32 {
-  return currentTimestamp - days * 86400;
 }
 
 // return 0 if denominator is 0 in division
