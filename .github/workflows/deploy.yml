@@ -9,8 +9,13 @@ on:
       - "v*"
 
 jobs:
+  test:
+    name: "Test"
+    uses: ./.github/workflows/test.yml
+
   deploy:
     name: "Deploy to Arbitrum One"
+    needs: test
 
     runs-on: ubuntu-latest
 
