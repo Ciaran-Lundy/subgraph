@@ -46,6 +46,37 @@ const fetchSubgraph = createApolloFetch({
   uri: `http://${graphNodeIP}:8000/subgraphs/name/livepeer/livepeer`,
 });
 
+const fetchIndexingStatus = createApolloFetch({
+  uri: `http://${graphNodeIP}:8030/graphql`,
+});
+
+type IndexingStatus = {
+  health: string;
+  fatalError: { message: string } | null;
+  latestBlock: number;
+};
+
+const getIndexingStatus = async (): Promise<IndexingStatus | null> => {
+  const result = await fetchIndexingStatus({
+    query: `{
+      indexingStatusForCurrentVersion(subgraphName: "livepeer/livepeer") {
+        health
+        fatalError { message }
+        chains { latestBlock { number } }
+      }
+    }`,
+  });
+  const status = result?.data?.indexingStatusForCurrentVersion;
+  if (!status) {
+    return null;
+  }
+  return {
+    health: status.health,
+    fatalError: status.fatalError,
+    latestBlock: parseInt(status.chains[0]?.latestBlock?.number ?? "0"),
+  };
+};
+
 type Ticket = {
   recipient: string;
   sender: string;
@@ -68,44 +99,37 @@ const exec = (cmd) => {
   }
 };
 
-const waitForSubgraphToBeSynced = async () =>
+// Resolves once the subgraph has indexed `blockNumber`, and rejects straight
+// away if graph-node reports the subgraph as failed.
+const waitForSubgraphToIndexBlock = async (blockNumber: number) =>
   new Promise<void>((resolve, reject) => {
     // Wait for up to five minutes
     const deadline = Date.now() + 300 * 1000;
-    // Function to check if the subgraph is synced
-    const checkSubgraphSynced = async () => {
+    const checkIndexedBlock = async () => {
+      let status: IndexingStatus | null = null;
       try {
-        console.log("Checking if subgraph is synced...");
-
-        const result = await fetchSubgraph({
-          query: `{
-            protocol(id: "0") {
-              id
-              roundCount
-              totalSupply
-            }
-          }
-        `,
-        });
-        const roundCount = parseInt(result?.data?.protocol?.roundCount ?? 0);
-        const totalSupply = parseInt(result?.data?.protocol?.totalSupply ?? 0);
-        if (roundCount > 0 && totalSupply > 0) {
-          resolve();
-        } else {
-          throw new Error("reject or retry");
-        }
+        status = await getIndexingStatus();
       } catch (e) {
-        if (Date.now() > deadline) {
-          reject(new Error(`Timed out waiting for the subgraph to sync`));
-        } else {
-          setTimeout(checkSubgraphSynced, 2000);
-        }
+        console.log(`Indexing status unavailable, retrying: ${e}`);
+      }
+      if (status?.health === "failed") {
+        reject(
+          new Error(`Subgraph failed: ${status.fatalError?.message ?? "unknown"}`)
+        );
+      } else if (status && status.latestBlock >= blockNumber) {
+        resolve();
+      } else if (Date.now() > deadline) {
+        reject(new Error(`Timed out waiting for the subgraph to index block ${blockNumber}`));
+      } else {
+        setTimeout(checkIndexedBlock, 2000);
       }
     };
 
-    // Periodically check whether the subgraph has synced
-    setTimeout(checkSubgraphSynced, 8000);
+    checkIndexedBlock();
   });
+
+const waitForSubgraphToBeSynced = async () =>
+  waitForSubgraphToIndexBlock(await ethers.provider.getBlockNumber());
 
 describe("Token contract", function () {
   let RoundsManager: RoundsManager;
@@ -197,6 +221,14 @@ describe("Token contract", function () {
       };
 
       return ticket;
+    };
+
+    // Rounds are 20 blocks long, so one can lapse while the subgraph deploys
+    // and syncs; redeeming a ticket needs the current round initialised.
+    const initializeRoundIfNeeded = async () => {
+      if (!(await RoundsManager.currentRoundInitialized())) {
+        await (await RoundsManager.initializeRound(defaults)).wait();
+      }
     };
 
     const getStake = async (addr) => {
@@ -432,11 +464,25 @@ describe("Token contract", function () {
     });
 
     it("subgraph does not fail", async () => {
-      // Wait for the subgraph to be indexed, and not fail
       await waitForSubgraphToBeSynced();
+
+      const status = await getIndexingStatus();
+      expect(status?.health).to.equal("healthy");
+      expect(status?.fatalError).to.equal(null);
+
+      const result = await fetchSubgraph({
+        query: `{ protocol(id: "0") { roundCount totalSupply roundLength } }`,
+      });
+      expect(result.errors).to.equal(undefined);
+      expect(parseInt(result.data.protocol.roundCount)).to.be.greaterThan(0);
+      expect(parseFloat(result.data.protocol.totalSupply)).to.be.greaterThan(0);
+      expect(result.data.protocol.roundLength).to.equal(
+        (await RoundsManager.roundLength()).toString()
+      );
     });
 
     it("correctly updates the broadcaster deposit when ticket value is less than deposit", async () => {
+      await initializeRoundIfNeeded();
       const faceValue = ethers.utils.parseEther(".2");
 
       const ticket = await createWinningTicket(
@@ -445,56 +491,63 @@ describe("Token contract", function () {
         1,
         faceValue
       );
-      const ticketHash = ethers.utils.keccak256(
-        ethers.utils.defaultAbiCoder.encode(
-          [
-            "address",
-            "address",
-            "uint256",
-            "uint256",
-            "uint256",
-            "string",
-            "uint256",
-          ],
-          [
-            ticket.recipient,
-            ticket.sender,
-            ticket.faceValue,
-            ticket.winProb,
-            ticket.senderNonce,
-            ticket.recipientRandHash,
-            ticket.auxData,
-          ]
-        )
+      // TicketBroker hashes the ticket with abi.encodePacked and checks an
+      // eth_sign signature over that hash.
+      const ticketHash = ethers.utils.solidityKeccak256(
+        ["address", "address", "uint256", "uint256", "uint256", "bytes32", "bytes"],
+        [
+          ticket.recipient,
+          ticket.sender,
+          ticket.faceValue,
+          ticket.winProb,
+          ticket.senderNonce,
+          ticket.recipientRandHash,
+          ticket.auxData,
+        ]
       );
 
-      const signedTicketHash = await broadcaster.signMessage(ticketHash);
+      // geth's personal_sign needs a password, so sign with eth_sign directly.
+      const signedTicketHash = await ethers.provider.send("eth_sign", [
+        broadcaster.address,
+        ticketHash,
+      ]);
 
-      await expect(
-        TicketBroker.connect(transcoder1).redeemWinningTicket(
-          ticket,
-          signedTicketHash,
-          1,
-          defaults
-        )
-      ).to.emit(TicketBroker, "WinningTicketRedeemed");
+      const redemption = await TicketBroker.connect(transcoder1).redeemWinningTicket(
+        ticket,
+        signedTicketHash,
+        1,
+        defaults
+      );
+      const receipt = await redemption.wait();
+      expect(receipt.events?.map((e) => e.event)).to.include("WinningTicketRedeemed");
 
-      const winningTicketRedeemedEvents = await fetchSubgraph({
+      await waitForSubgraphToIndexBlock(receipt.blockNumber);
+
+      const result = await fetchSubgraph({
         query: `{
           winningTicketRedeemedEvents {
-             sender {
-              id
-            }
-            id
+            sender { id }
+            recipient { id }
             faceValue
+          }
+          broadcaster(id: "${broadcaster.address.toLowerCase()}") {
+            deposit
+            reserve
           }
         }`,
       });
 
-      console.log({ winningTicketRedeemedEvents });
+      expect(result.errors).to.equal(undefined);
+      expect(result.data.winningTicketRedeemedEvents).to.have.lengthOf(1);
+      const [event] = result.data.winningTicketRedeemedEvents;
+      expect(event.sender.id).to.equal(broadcaster.address.toLowerCase());
+      expect(event.recipient.id).to.equal(transcoder1.address.toLowerCase());
+      expect(event.faceValue).to.equal("0.2");
+      expect(result.data.broadcaster.deposit).to.equal("0.8");
+      expect(result.data.broadcaster.reserve).to.equal("1");
     });
 
-    it.skip("creates a poll", async () => {
+    it("creates a poll", async () => {
       const createPollAndCheckResult = async () => {
         const hash = ethers.utils.formatBytes32String(
           "QmWBPdeDCi8uxQrUyTV38xwaeYxgmjQmx1Zkiw4vgQhj7x"
@@ -514,7 +567,7 @@ describe("Token contract", function () {
       await createPollAndCheckResult();
     });
 
-    it.skip("correctly indexes vote choices", async () => {
+    it("correctly indexes vote choices", async () => {
       let subgraphPollData = await fetchSubgraph({
         query: `{ polls { id } }`,
       });
@@ -579,20 +632,20 @@ describe("Token contract", function () {
       }
     });
 
-    it.skip("correctly tallies poll after transcoder 1 calls reward", async () => {
+    it("correctly tallies poll after transcoder 1 calls reward", async () => {
       await mineAndInitializeRound(roundLength);
       await BondingManager.connect(transcoder1).reward();
       await waitForSubgraphToBeSynced();
       await tallyPollAndCheckResult();
     });
 
-    it.skip("correctly tallies poll after transcoder 2 calls reward", async () => {
+    it("correctly tallies poll after transcoder 2 calls reward", async () => {
       await BondingManager.connect(transcoder2).reward();
       await waitForSubgraphToBeSynced();
       await tallyPollAndCheckResult();
     });
 
-    it.skip("correctly tallies poll after transcoder bonds", async () => {
+    it("correctly tallies poll after transcoder bonds", async () => {
       const bondAmount = 1000;
       await Token.connect(transcoder1).approve(
         bondingManagerAddress,
@@ -606,20 +659,20 @@ describe("Token contract", function () {
       await tallyPollAndCheckResult();
     });
 
-    it.skip("correctly tallies poll after transcoder unbonds", async () => {
+    it("correctly tallies poll after transcoder unbonds", async () => {
       const unbondAmount = 1000;
       await BondingManager.connect(transcoder1).unbond(unbondAmount);
       await waitForSubgraphToBeSynced();
       await tallyPollAndCheckResult();
     });
 
-    it.skip("correctly tallies poll after transcoder rebonds", async () => {
+    it("correctly tallies poll after transcoder rebonds", async () => {
       await BondingManager.connect(transcoder2).rebond(0);
       await waitForSubgraphToBeSynced();
       await tallyPollAndCheckResult();
     });
 
-    it.skip("correctly tallies poll after delegator bonds", async () => {
+    it("correctly tallies poll after delegator bonds", async () => {
       const bondAmount = 1000;
       await Token.connect(delegator1).approve(
         bondingManagerAddress,
@@ -633,7 +686,7 @@ describe("Token contract", function () {
       await tallyPollAndCheckResult();
     });
 
-    it.skip("correctly tallies poll after delegator unbonds", async () => {
+    it("correctly tallies poll after delegator unbonds", async () => {
       const unbondAmount = 1000;
       await BondingManager.connect(delegator1).unbond(unbondAmount);
 
@@ -641,13 +694,13 @@ describe("Token contract", function () {
       await tallyPollAndCheckResult();
     });
 
-    it.skip("correctly tallies poll after delegator rebonds", async () => {
+    it("correctly tallies poll after delegator rebonds", async () => {
       await BondingManager.connect(delegator1).rebond(0);
       await waitForSubgraphToBeSynced();
       await tallyPollAndCheckResult();
     });
 
-    it.skip("correctly tallies poll after delegator claims earnings", async () => {
+    it("correctly tallies poll after delegator claims earnings", async () => {
       await mineAndInitializeRound(roundLength);
       await BondingManager.connect(transcoder1).reward();
 
@@ -658,7 +711,7 @@ describe("Token contract", function () {
       await tallyPollAndCheckResult();
     });
 
-    it.skip("correctly tallies poll after delegator that has not voted bonds to a transcoder that has", async () => {
+    it("correctly tallies poll after delegator that has not voted bonds to a transcoder that has", async () => {
       const bondAmount = 1000;
       await Token.connect(delegator4).approve(
         bondingManagerAddress,
@@ -674,7 +727,7 @@ describe("Token contract", function () {
       await tallyPollAndCheckResult();
     });
 
-    it.skip("correctly tallies poll after delegator that has not voted unbonds from a transcoder that has", async () => {
+    it("correctly tallies poll after delegator that has not voted unbonds from a transcoder that has", async () => {
       const unbondAmount = 500;
       await BondingManager.connect(delegator4).unbond(unbondAmount);
 
@@ -682,13 +735,13 @@ describe("Token contract", function () {
       await tallyPollAndCheckResult();
     });
 
-    it.skip("correctly tallies poll after delegator that has not voted rebonds to a transcoder that has", async () => {
+    it("correctly tallies poll after delegator that has not voted rebonds to a transcoder that has", async () => {
       await BondingManager.connect(delegator4).rebond(0);
       await waitForSubgraphToBeSynced();
       await tallyPollAndCheckResult();
     });
 
-    it.skip("correctly tallies poll after delegator 1 switches from transcoder 1 to transcoder 2", async () => {
+    it("correctly tallies poll after delegator 1 switches from transcoder 1 to transcoder 2", async () => {
       const bondAmount = 1000;
       await Token.connect(delegator1).approve(
         bondingManagerAddress,
@@ -707,7 +760,7 @@ describe("Token contract", function () {
       await tallyPollAndCheckResult();
     });
 
-    it.skip("correctly tallies poll after delegator 5 bonds with unregistered transcoder (delegate 2)", async () => {
+    it("correctly tallies poll after delegator 5 bonds with unregistered transcoder (delegate 2)", async () => {
       const bondAmount = 1000;
       await Token.connect(delegator5).approve(
         bondingManagerAddress,
@@ -722,7 +775,7 @@ describe("Token contract", function () {
       await tallyPollAndCheckResult();
     });
 
-    it.skip("correctly tallies poll after delegator 2 registers as transcoder and inherits the voting power of delegator 5", async () => {
+    it("correctly tallies poll after delegator 2 registers as transcoder and inherits the voting power of delegator 5", async () => {
       const bondAmount = 1000;
       await Token.connect(delegator2).approve(
         bondingManagerAddress,
@@ -741,7 +794,7 @@ describe("Token contract", function () {
       await tallyPollAndCheckResult();
     });
 
-    it.skip("correctly tallies poll after delegator 5 votes and overrides its delegate vote", async () => {
+    it("correctly tallies poll after delegator 5 votes and overrides its delegate vote", async () => {
       const subgraphPollData = await fetchSubgraph({
         query: `{ polls { id } }`,
       });
@@ -759,7 +812,7 @@ describe("Token contract", function () {
       await tallyPollAndCheckResult();
     });
 
-    it.skip("correctly tallies poll after delegator 5 claims earnings", async () => {
+    it("correctly tallies poll after delegator 5 claims earnings", async () => {
       await mineAndInitializeRound(roundLength);
       await BondingManager.connect(transcoder1).reward();
       await BondingManager.connect(delegator2).reward();
@@ -771,7 +824,7 @@ describe("Token contract", function () {
       await tallyPollAndCheckResult();
     });
 
-    it.skip("correctly tallies poll after delegator moves stake to a transcoder that voted", async () => {
+    it("correctly tallies poll after delegator moves stake to a transcoder that voted", async () => {
       const bondAmount = 1000;
       await Token.connect(delegator1).approve(
         bondingManagerAddress,
@@ -788,7 +841,7 @@ describe("Token contract", function () {
       await tallyPollAndCheckResult();
     });
 
-    it.skip("correctly tallies poll after transcoder 1 resigns", async () => {
+    it("correctly tallies poll after transcoder 1 resigns", async () => {
       const unbondAmount = await getStake(transcoder1);
       await BondingManager.connect(transcoder1).unbond(unbondAmount);
 
@@ -797,7 +850,7 @@ describe("Token contract", function () {
       await tallyPollAndCheckResult();
     });
 
-    it.skip("correctly tallies poll after delegator with zero voting power votes", async () => {
+    it("correctly tallies poll after delegator with zero voting power votes", async () => {
       const subgraphPollData = await fetchSubgraph({
         query: `{ polls { id } }`,
       });
@@ -809,7 +862,7 @@ describe("Token contract", function () {
       await tallyPollAndCheckResult();
     });
 
-    it.skip("correctly tallies poll after polling period is over", async () => {
+    it("correctly tallies poll after polling period is over", async () => {
       const subgraphPollData = await fetchSubgraph({
         query: `{ polls { id, endBlock } }`,
       });
