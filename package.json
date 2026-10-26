@@ -10,6 +10,7 @@
     "codegen": "graph codegen --output-dir src/types/",
     "codegen:typechain": "yarn typechain --out-dir ./typechain-types/ --target ethers-v5 \"abis/**.json\"",
     "build": "graph build",
+    "test:unit": "graph test -v 0.6.0",
     "create:local": "graph create livepeer/livepeer --node http://127.0.0.1:8020",
     "create:docker": "graph create livepeer/livepeer --node http://graph-node:8020",
     "deploy": "graph deploy ${SUBGRAPH:-livepeer}",
@@ -33,6 +34,7 @@
     "ethereum-waffle": "^4.0.10",
     "ethers": "^5.7.2",
     "hardhat": "^2.28.3",
+    "matchstick-as": "0.6.0",
     "typechain": "^8.3.2"
   },
   "dependencies": {
