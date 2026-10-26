@@ -79,3 +79,6 @@ generated/
 
 # typechain types output
 typechain-types/
+
+# matchstick compiled tests
+tests/.bin/

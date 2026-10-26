@@ -1,4 +1,4 @@
-specVersion: 0.0.2
+specVersion: 1.3.0
 description: A protocol for affordable and reliable video encoding. Find transcoders, delegators, earning pools, and staking rounds.
 repository: https://github.com/livepeer/subgraph
 schema:
@@ -13,7 +13,7 @@ dataSources:
       abi: BondingManager
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/bondingManager.ts
       abis:
@@ -79,7 +79,7 @@ dataSources:
       abi: L2Migrator
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/l2Migrator.ts
       abis:
@@ -104,7 +104,7 @@ dataSources:
       abi: RoundsManager
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/roundsManager.ts
       abis:
@@ -139,7 +139,7 @@ dataSources:
       abi: Minter
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/minter.ts
       abis:
@@ -167,7 +167,7 @@ dataSources:
       abi: Minter
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/minter.ts
       abis:
@@ -195,7 +195,7 @@ dataSources:
       abi: TicketBroker
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/ticketBroker.ts
       abis:
@@ -237,7 +237,7 @@ dataSources:
       abi: Controller
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/controller.ts
       abis:
@@ -262,7 +262,7 @@ dataSources:
       abi: PollCreator
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/pollCreator.ts
       abis:
@@ -287,7 +287,7 @@ dataSources:
       abi: LivepeerGovernor
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/treasury.ts
       abis:
@@ -319,7 +319,7 @@ dataSources:
       abi: ServiceRegistry
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/serviceRegistry.ts
       abis:
@@ -344,7 +344,7 @@ dataSources:
       abi: LivepeerToken
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/livepeerToken.ts
       abis:
@@ -380,7 +380,7 @@ templates:
       abi: BondingManager
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/pollTallyHandlers.ts
       abis:
@@ -411,7 +411,7 @@ templates:
       abi: Poll
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.6
+      apiVersion: 0.0.9
       language: wasm/assemblyscript
       file: ./src/mappings/poll.ts
       abis:

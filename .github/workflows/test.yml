@@ -1,0 +1,69 @@
+name: Test
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  # Called by deploy.yml so a tag only deploys once these checks pass.
+  workflow_call:
+
+jobs:
+  build-and-unit-test:
+    name: "Build and unit test"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: yarn
+      - name: Install
+        run: yarn --immutable
+      - name: Generate manifest and types
+        run: |
+          yarn prepare:arbitrum-one
+          yarn codegen
+      - name: Build
+        run: yarn build
+      - name: Unit tests (Matchstick)
+        run: yarn test:unit
+
+  # Report-only until the findings it raises are fixed: it currently reports
+  # 7 errors (BDR-8 and Protocol overwrites in mint/burn, plus 3 false
+  # positives), so it is not part of the deploy gate.
+  subgraph-linter:
+    name: "Subgraph Linter (report only)"
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Checkout Subgraph Linter
+        uses: actions/checkout@v7
+        with:
+          repository: graphprotocol/subgraph-linter
+          # No releases are published; pin the reviewed commit.
+          ref: 9c7260e0de75860f1e41f6c098975ee4f48a9618
+          path: .subgraph-linter
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: yarn
+      - name: Install
+        run: yarn --immutable
+      - name: Generate manifest and types
+        run: |
+          yarn prepare:arbitrum-one
+          yarn codegen
+      - name: Build Subgraph Linter
+        working-directory: .subgraph-linter
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+      - name: Lint
+        run: node .subgraph-linter/dist/index.js --manifest subgraph.yaml --tsconfig tsconfig.json

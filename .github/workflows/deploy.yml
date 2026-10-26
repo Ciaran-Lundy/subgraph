@@ -9,8 +9,13 @@ on:
       - "v*"
 
 jobs:
+  test:
+    name: "Test"
+    uses: ./.github/workflows/test.yml
+
   deploy:
     name: "Deploy to Arbitrum One"
+    needs: test
 
     runs-on: ubuntu-latest
 
@@ -29,4 +34,4 @@ jobs:
           DEPLOY_KEY: ${{ secrets.ARBITRUM_ONE_DEPLOY_KEY }}
           VERSION_LABEL: ${{ github.ref_name }}
         run: |
-          yarn deploy:arbitrum-one --studio --version-label "$VERSION_LABEL" --deploy-key "$DEPLOY_KEY"
+          yarn deploy:arbitrum-one --version-label "$VERSION_LABEL" --deploy-key "$DEPLOY_KEY"
